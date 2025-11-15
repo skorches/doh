@@ -70,7 +70,7 @@ services:
     container_name: doh-https
     restart: unless-stopped
     environment:
-      - UPSTREAM_DNS_SERVER=doh-server:5053
+      - UPSTREAM_DNS_SERVER=doh-server-internal:5053
       - DOH_HTTP_PREFIX=/dns-query
       - DOH_SERVER_LISTEN=:443
       - DOH_SERVER_TIMEOUT=10
@@ -83,20 +83,21 @@ services:
     depends_on:
       - doh-server
 
-  # DNS Proxy for devices that support it
+  # DNS Proxy using CoreDNS (simpler, more reliable)
   dns-proxy:
-    image: m13253/dns-over-https:latest
-    container_name: dns-proxy-client
+    image: coredns/coredns:latest
+    container_name: dns-proxy
     restart: unless-stopped
-    command: doh-client
-    environment:
-      - DOH_UPSTREAM_URL=https://localhost:443/dns-query
+    command: -conf /etc/coredns/Corefile
+    volumes:
+      - ./coredns-443/Corefile:/etc/coredns/Corefile:ro
     ports:
       - "53:53/udp"
       - "53:53/tcp"
-    network_mode: "host"
+    networks:
+      - doh-network
     depends_on:
-      - doh-https
+      - doh-server
 
 networks:
   doh-network:
@@ -117,6 +118,29 @@ elif command -v firewall-cmd >/dev/null 2>&1; then
     firewall-cmd --reload
     echo -e "${GREEN}FirewallD rules added${NC}"
 fi
+
+# Create CoreDNS config directory
+echo -e "${YELLOW}Creating DNS proxy configuration...${NC}"
+mkdir -p coredns-443
+
+cat > coredns-443/Corefile << 'EOF'
+. {
+    log
+    errors
+    
+    # Forward to internal DoH server
+    forward . doh-server-internal:5053 {
+        max_concurrent 1000
+        health_check 5s
+    }
+    
+    # Cache DNS responses
+    cache {
+        success 9984 3600
+        denial 9984 60
+    }
+}
+EOF
 
 # Start services
 echo -e "${YELLOW}Starting DoH services on port 443...${NC}"
