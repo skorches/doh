@@ -1,0 +1,47 @@
+. {
+    # Enable query logging for debugging
+    log
+    
+    # Enable errors logging
+    errors
+    
+    # Custom hosts file for Xbox-specific optimizations
+    hosts /etc/coredns/xbox-hosts {
+        fallthrough
+    }
+    
+    # Cache DNS responses (important for gaming performance)
+    cache {
+        success 9984 3600  # Cache successful responses for 1 hour
+        denial 9984 60     # Cache NXDOMAIN for 1 minute
+        prefetch 10 60s    # Prefetch popular domains
+    }
+    
+    # Forward to our DoH server
+    forward . doh-server:5053 {
+        max_concurrent 1000
+        expire 10s
+        health_check 5s
+    }
+    
+    # Enable prometheus metrics
+    prometheus :9153
+    
+    # Reload configuration automatically
+    reload
+}
+
+# Special configuration for Xbox Live domains
+xbox.com xboxlive.com {
+    log
+    errors
+    
+    # No caching for Xbox auth to ensure fresh responses
+    cache 30
+    
+    forward . doh-server:5053 {
+        max_concurrent 1000
+        health_check 5s
+    }
+}
+

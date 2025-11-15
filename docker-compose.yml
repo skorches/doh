@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # DNS-over-HTTPS Server (cloudflared)
+  doh-server:
+    image: cloudflare/cloudflared:latest
+    container_name: doh-server
+    restart: unless-stopped
+    command: proxy-dns
+    environment:
+      # Listen on all interfaces for DoH requests
+      # Using non-blocked DNS providers (avoiding Cloudflare, Google, AWS)
+      - TUNNEL_DNS_UPSTREAM=https://dns.quad9.net/dns-query,https://doh.opendns.com/dns-query,https://doh.cleanbrowsing.org/doh/security-filter/
+      - TUNNEL_DNS_ADDRESS=0.0.0.0
+      - TUNNEL_DNS_PORT=5053
+      - TUNNEL_METRICS=0.0.0.0:49312
+    ports:
+      - "5053:5053/udp"
+      - "5053:5053/tcp"
+      - "49312:49312/tcp"
+    networks:
+      - doh-network
+
+  # DNS Proxy for Xbox (CoreDNS with forwarding)
+  dns-proxy:
+    image: coredns/coredns:latest
+    container_name: dns-proxy
+    restart: unless-stopped
+    volumes:
+      - ./coredns/Corefile:/Corefile:ro
+      - ./coredns/xbox-hosts:/etc/coredns/xbox-hosts:ro
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+    networks:
+      - doh-network
+    depends_on:
+      - doh-server
+
+  # Optional: DNS-over-HTTPS proxy server (for HTTPS endpoints)
+  doh-proxy:
+    image: satishweb/doh-server:latest
+    container_name: doh-proxy
+    restart: unless-stopped
+    environment:
+      - UPSTREAM_DNS_SERVER=doh-server:5053
+      - DOH_HTTP_PREFIX=/dns-query
+      - DOH_SERVER_LISTEN=:8053
+      - DOH_SERVER_TIMEOUT=10
+      - DOH_SERVER_TRIES=3
+    ports:
+      - "8053:8053/tcp"
+    networks:
+      - doh-network
+    depends_on:
+      - doh-server
+
+networks:
+  doh-network:
+    driver: bridge
+

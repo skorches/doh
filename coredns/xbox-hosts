@@ -1,0 +1,10 @@
+# Custom hosts file for Xbox optimization
+# Add any custom DNS overrides here if needed
+
+# Example: Force specific Xbox services to use certain IPs
+# Uncomment and modify as needed based on your region
+# 40.112.72.205    xbox.com
+# 13.107.246.45    xboxlive.com
+
+# You can add VPS IP or other optimizations here
+
