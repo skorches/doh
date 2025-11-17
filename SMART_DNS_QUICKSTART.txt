@@ -1,0 +1,191 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║                                                                          ║
+║            🎮 SMART DNS SETUP FOR XBOX + DISCORD 🎮                      ║
+║                                                                          ║
+║              Like xbox-dns.ru but YOUR OWN SERVER!                       ║
+║                                                                          ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+📦 WHAT'S INCLUDED:
+
+  ✅ setup-xbox-proxy.sh           - Install HAProxy SNI proxy
+  ✅ integrate-coredns-smartdns.sh - Add Smart DNS to DoH
+  ✅ test-smartdns.sh              - Test everything works
+  ✅ add-discord-support.sh        - Add more Discord domains
+  ✅ SMART_DNS_SETUP.md            - Full documentation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 QUICK SETUP (3 STEPS):
+
+1️⃣  SETUP HAPROXY (SNI PROXY)
+   
+   SSH to VPS:
+   $ ssh root@91.235.234.92
+   
+   Run setup script:
+   $ cd /root/doh
+   $ ./setup-xbox-proxy.sh
+   
+   ⏱️  Takes: ~2 minutes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2️⃣  INTEGRATE WITH DOH
+   
+   Run integration script:
+   $ ./integrate-coredns-smartdns.sh
+   
+   ⏱️  Takes: ~1 minute
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3️⃣  TEST EVERYTHING
+   
+   Run test script:
+   $ ./test-smartdns.sh
+   
+   Expected results:
+   ✅ xboxlive.com     → Returns 91.235.234.92 (VPS IP)
+   ✅ discord.com      → Returns 91.235.234.92 (VPS IP)
+   ✅ google.com       → Returns real IP (not VPS)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎮 HOW IT WORKS:
+
+   Old Way (xbox-dns.ru):
+   Xbox → xbox-dns.ru DoH → Returns xbox-dns.ru IP
+         → xbox-dns.ru proxy forwards → Real Xbox servers
+   
+   Your Way (bypass.440.info):
+   Xbox → bypass.440.info DoH → Returns YOUR VPS IP
+         → YOUR HAProxy forwards → Real Xbox servers
+   
+   ✅ Same concept, YOUR control!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔍 VERIFY IT'S WORKING:
+
+   1. HAProxy Stats:
+      Open: http://91.235.234.92:8404/stats
+   
+   2. DNS Resolution:
+      $ curl -H 'accept: application/dns-json' \
+        'https://bypass.440.info/dns-query?name=xboxlive.com&type=A'
+   
+   3. Container Status:
+      $ docker-compose ps
+      
+      Should see:
+      ✅ doh-nginx          (running)
+      ✅ doh-backend        (running)
+      ✅ doh-upstream       (running)
+      ✅ coredns-smartdns   (running) ← NEW!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📱 KEENETIC CONFIGURATION:
+
+   Your Keenetic DoH is already configured:
+   ✅ DoH URL: https://bypass.440.info/dns-query
+   ✅ DNS Proxy: Enabled
+   
+   No changes needed on Keenetic side!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 SUPPORTED SERVICES:
+
+   ✅ Xbox Live (all services)
+   ✅ Discord (voice + text)
+   ✅ Xbox authentication
+   ✅ Xbox multiplayer
+   ✅ Game Pass
+   ✅ Microsoft Store
+   ✅ Teredo (IPv6 for Xbox)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔧 MANAGEMENT COMMANDS:
+
+   View HAProxy logs:
+   $ journalctl -u haproxy -f
+   
+   View DoH logs:
+   $ docker-compose logs -f
+   
+   Restart HAProxy:
+   $ systemctl restart haproxy
+   
+   Restart DoH:
+   $ docker-compose restart
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 FULL DOCUMENTATION:
+
+   Read: SMART_DNS_SETUP.md
+   
+   $ cat SMART_DNS_SETUP.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️  NOTES:
+
+   1. First time setup takes ~3 minutes total
+   2. After setup, no maintenance needed
+   3. HAProxy automatically handles all Xbox/Discord traffic
+   4. Your ISP only sees encrypted traffic to your VPS
+   5. Works exactly like xbox-dns.ru!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🆘 TROUBLESHOOTING:
+
+   If Xbox doesn't connect:
+   1. Run: ./test-smartdns.sh
+   2. Check: http://91.235.234.92:8404/stats
+   3. Verify: Keenetic DoH is working
+   4. Check: docker-compose logs -f
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎉 READY TO START?
+
+   1. Copy scripts to VPS:
+      $ scp setup-xbox-proxy.sh integrate-coredns-smartdns.sh \
+        test-smartdns.sh root@91.235.234.92:/root/doh/
+   
+   2. SSH to VPS:
+      $ ssh root@91.235.234.92
+   
+   3. Run setup:
+      $ cd /root/doh
+      $ ./setup-xbox-proxy.sh
+      $ ./integrate-coredns-smartdns.sh
+      $ ./test-smartdns.sh
+   
+   4. Connect Xbox and enjoy! 🎮
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 WHY THIS WORKS:
+
+   xbox-dns.ru blocks ISP by:
+   1. DNS returns their IP (not Xbox IP)
+   2. Their proxy forwards to real Xbox
+   
+   Your setup does THE SAME:
+   1. DNS returns YOUR VPS IP (not Xbox IP)
+   2. YOUR HAProxy forwards to real Xbox
+   
+   Result: ISP can't block what they can't see! 🎉
+
+╔══════════════════════════════════════════════════════════════════════════╗
+║                                                                          ║
+║                    Good luck! Enjoy your Xbox! 🎮                        ║
+║                                                                          ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
