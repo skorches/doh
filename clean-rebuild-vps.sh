@@ -23,9 +23,10 @@ echo "  1. Stop all services"
 echo "  2. Remove old containers and configs"
 echo "  3. Rebuild everything from scratch"
 echo ""
-read -p "Continue? (y/n) " -n 1 -r
+echo "Type 'y' or 'yes' to continue, anything else to cancel"
+read -p "Continue? (y/n): " REPLY
 echo ""
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+if [[ ! $REPLY =~ ^[Yy]([Ee][Ss])?$ ]]; then
     echo "Cancelled"
     exit 0
 fi
