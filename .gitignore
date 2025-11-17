@@ -1,29 +1,28 @@
-# Environment files
-.env
-
-# Docker volumes
-volumes/
-
-# Backup files
-*.backup
-*.bak
+# SSL certificates
+ssl/*.crt
+ssl/*.key
+ssl/*.pem
 
 # Logs
 *.log
 logs/
 
+# Capture files
+*.pcap
+*.pcapng
+wireshark-analysis-*/
+xbox-capture-*/
+
+# Backups
+*.backup*
+*.bak
+
+# Archive (old files)
+archive/
+
 # OS files
 .DS_Store
 Thumbs.db
 
-# Editor files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# Temporary files
-tmp/
-temp/
-
+# Environment
+.env
