@@ -19,17 +19,13 @@ echo "Clean Rebuild - DoH + Smart DNS"
 echo "================================================"
 echo ""
 echo "This will:"
-echo "  1. Stop all services"
-echo "  2. Remove old containers and configs"
-echo "  3. Rebuild everything from scratch"
+echo "  ✓ Stop all services"
+echo "  ✓ Remove old containers and configs"
+echo "  ✓ Rebuild everything from scratch"
 echo ""
-echo "Type 'y' or 'yes' to continue, anything else to cancel"
-read -p "Continue? (y/n): " REPLY
+echo "Starting in 3 seconds... (Press Ctrl+C to cancel)"
+sleep 3
 echo ""
-if [[ ! $REPLY =~ ^[Yy]([Ee][Ss])?$ ]]; then
-    echo "Cancelled"
-    exit 0
-fi
 
 cd /root/doh
 
