@@ -1,87 +1,78 @@
-# Xbox Smart DNS + DoH Server
+# Xbox Smart DNS Server
 
-DNS over HTTPS (DoH) server with Smart DNS proxy for Xbox Live connectivity in geo-blocked regions.
+**Simple setup to make Xbox work in blocked regions.**
 
-## 🎯 Features
+## What You Need
 
-- **DoH Server**: Encrypted DNS queries over HTTPS
-- **Smart DNS**: Returns VPS IP for Xbox/Discord domains (bypasses geo-blocks)
-- **SNI Proxy**: Forwards Xbox traffic to real servers through your VPS
-- **Bypass ISP Blocks**: Works even when ISP blocks Cloudflare/AWS
+- VPS (Virtual Private Server) with Ubuntu
+- Domain name (like `bypass.440.info`)
+- Router with DoH support (like Keenetic)
 
-## 📁 Project Structure
+## Quick Setup (5 Minutes)
 
-```
-.
-├── docker-compose.yml      # Main Docker Compose config
-├── coredns/                # CoreDNS Smart DNS config
-├── nginx/                  # Nginx DoH frontend config
-├── ssl/                    # SSL certificates
-├── scripts/
-│   ├── setup/             # Initial setup scripts
-│   ├── maintenance/       # Maintenance scripts
-│   └── analysis/          # Traffic analysis tools
-├── docs/                   # Documentation
-└── archive/                # Old/obsolete files
+### 1. Copy Files to VPS
+
+```bash
+# From your computer
+scp -r * root@YOUR_VPS_IP:/root/doh/
 ```
 
-## 🚀 Quick Start
-
-### 1. Initial Setup
+### 2. Install Everything
 
 ```bash
 # On your VPS
+ssh root@YOUR_VPS_IP
 cd /root/doh
-./scripts/setup/deploy-smartdns-complete.sh
+chmod +x scripts/setup/install.sh
+./scripts/setup/install.sh
 ```
 
-### 2. Configure Router
+**Wait 5-10 minutes** - The script installs everything automatically!
 
-**Keenetic Router:**
-- Internet → DNS → Use DNS over HTTPS (DoH)
-- URL: `https://bypass.440.info/dns-query`
+### 3. Configure Router
 
-### 3. Test
+1. Open: `http://192.168.1.1` (or your router IP)
+2. Go to: **Internet** → **DNS** → **Other connections**
+3. Enable: **"Use DNS over HTTPS (DoH)"**
+4. Enter URL: `https://YOUR_DOMAIN/dns-query`
+5. Save and restart router
 
-```bash
-# Test Smart DNS
-curl -H 'accept: application/dns-json' 'https://bypass.440.info/dns-query?name=xboxlive.com&type=A'
-# Should return your VPS IP (91.235.234.92)
-```
+### 4. Test Xbox
 
-## 📚 Documentation
+Xbox → Settings → Network → Test network connection
 
-- [Smart DNS Setup](docs/SMART_DNS_SETUP.md)
-- [Xbox Configuration](docs/XBOX_SETUP_GUIDE.md)
-- [Domain Setup](docs/DOMAIN_SETUP_GUIDE.md)
-- [Troubleshooting](docs/TROUBLESHOOTING.md)
+**Done!** 🎮
 
-## 🔧 Maintenance
+## What Gets Installed
 
-### Add Xbox Domains from Wireshark
+- DoH Server (DNS over HTTPS)
+- Smart DNS (returns VPS IP for Xbox domains)
+- SNI Proxy (forwards Xbox traffic)
+- All configured automatically!
 
-```bash
-# Analyze Wireshark capture
-./scripts/analysis/analyze-wireshark.sh capture.pcap
+## Troubleshooting
 
-# Add domains
-./scripts/maintenance/add-wireshark-domains-filtered.sh wireshark-analysis-*/xbox-domains.txt
-```
+**Xbox not connecting?**
 
-### Optimize Hosts File
+1. Check DoH is working:
+   ```bash
+   curl -H 'accept: application/dns-json' 'https://YOUR_DOMAIN/dns-query?name=google.com&type=A'
+   ```
 
-```bash
-./scripts/maintenance/optimize-xbox-hosts.sh
-```
+2. Verify router DoH settings are correct
 
-## 🛠️ Services
+3. Make sure Xbox DNS is set to "Automatic"
 
-- **Nginx**: DoH frontend (port 8443 internal, proxied by SNIProxy on 443)
-- **DoH Backend**: satishweb/doh-server (port 8053)
-- **CoreDNS**: Smart DNS layer (returns VPS IP for Xbox domains)
-- **Cloudflared**: Upstream DoH (port 5053)
-- **SNIProxy**: SNI proxy for Xbox traffic (port 443)
+**Need help?** Check the install script output for detailed logs.
 
-## 📝 License
+## Files Included
 
-MIT
+- `docker-compose.yml` - Docker configuration
+- `coredns/` - Smart DNS settings
+- `scripts/setup/install.sh` - Main installer (does everything!)
+
+That's it! Everything else is handled by the installer.
+
+## License
+
+MIT License - Free to use
