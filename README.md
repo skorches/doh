@@ -27,17 +27,34 @@ chmod +x scripts/setup/install.sh
 ./scripts/setup/install.sh
 ```
 
+**The script will ask for:**
+- Your domain name (e.g., `bypass.440.info`)
+
 **Wait 5-10 minutes** - The script installs everything automatically!
 
-### 3. Configure Router
+### 3. Get SSL Certificate (Recommended)
+
+The installer creates a self-signed certificate. For production, get a free Let's Encrypt certificate:
+
+```bash
+# Make sure your domain DNS points to the VPS first!
+./scripts/setup/setup-letsencrypt.sh
+```
+
+**Requirements:**
+- Domain DNS A record must point to your VPS IP
+- Port 80 must be open
+
+### 4. Configure Router
 
 1. Open: `http://192.168.1.1` (or your router IP)
 2. Go to: **Internet** → **DNS** → **Other connections**
 3. Enable: **"Use DNS over HTTPS (DoH)"**
 4. Enter URL: `https://YOUR_DOMAIN/dns-query`
+   - Use the domain you entered during installation
 5. Save and restart router
 
-### 4. Test Xbox
+### 5. Test Xbox
 
 Xbox → Settings → Network → Test network connection
 

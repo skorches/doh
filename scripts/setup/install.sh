@@ -15,29 +15,84 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 echo "================================================"
-echo "Clean Rebuild - DoH + Smart DNS"
+echo "Xbox Smart DNS + DoH Server Setup"
 echo "================================================"
 echo ""
-echo "This will:"
-echo "  ✓ Stop all services"
-echo "  ✓ Remove old containers and configs"
-echo "  ✓ Rebuild everything from scratch"
-echo ""
-echo "Starting in 3 seconds... (Press Ctrl+C to cancel)"
-sleep 3
+
+# Check prerequisites
+echo -e "${YELLOW}Checking prerequisites...${NC}"
+
+if ! command -v docker &> /dev/null; then
+    echo -e "${RED}❌ Docker is not installed${NC}"
+    echo "Install Docker: curl -fsSL https://get.docker.com | sh"
+    exit 1
+fi
+
+# Check for docker-compose (old) or docker compose (new)
+DOCKER_COMPOSE_CMD=""
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE_CMD="docker-compose"
+elif docker compose version &> /dev/null 2>&1; then
+    DOCKER_COMPOSE_CMD="docker compose"
+else
+    echo -e "${RED}❌ Docker Compose is not installed${NC}"
+    echo "Install Docker Compose or use: apt-get install docker-compose"
+    exit 1
+fi
+
+if ! command -v curl &> /dev/null; then
+    echo -e "${RED}❌ curl is not installed${NC}"
+    echo "Install: apt-get update && apt-get install -y curl"
+    exit 1
+fi
+
+echo -e "${GREEN}✅ Prerequisites OK${NC}"
 echo ""
 
-cd /root/doh
+# Get configuration
+INSTALL_DIR="/root/doh"
+mkdir -p "$INSTALL_DIR"
+cd "$INSTALL_DIR"
 
 # Get VPS IP
-VPS_IP=$(curl -4 -s ifconfig.me)
-echo -e "${GREEN}VPS IP: $VPS_IP${NC}"
+VPS_IP=$(curl -4 -s ifconfig.me || curl -4 -s icanhazip.com || curl -4 -s ipinfo.io/ip || echo "")
+if [ -z "$VPS_IP" ]; then
+    echo -e "${RED}❌ Could not detect VPS IP${NC}"
+    read -p "Enter your VPS IP address manually: " VPS_IP
+    if [ -z "$VPS_IP" ]; then
+        echo -e "${RED}VPS IP is required!${NC}"
+        exit 1
+    fi
+fi
+echo -e "${GREEN}Detected VPS IP: $VPS_IP${NC}"
+
+# Ask for domain name
+echo ""
+read -p "Enter your domain name (e.g., bypass.440.info): " DOMAIN_NAME
+if [ -z "$DOMAIN_NAME" ]; then
+    echo -e "${RED}Domain name is required!${NC}"
+    exit 1
+fi
+
+echo ""
+echo "Configuration:"
+echo "  VPS IP: $VPS_IP"
+echo "  Domain: $DOMAIN_NAME"
+echo ""
+read -p "Continue with installation? (y/n): " REPLY
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Cancelled"
+    exit 0
+fi
+
+echo ""
+echo "Starting installation..."
 echo ""
 
 # Step 1: Stop all services and clean up Docker
 echo -e "${YELLOW}[1/8] Stopping all services and cleaning up...${NC}"
-docker-compose down 2>/dev/null || true
-docker-compose rm -f 2>/dev/null || true
+$DOCKER_COMPOSE_CMD down 2>/dev/null || true
+$DOCKER_COMPOSE_CMD rm -f 2>/dev/null || true
 docker network prune -f 2>/dev/null || true
 systemctl stop sniproxy 2>/dev/null || true
 systemctl stop haproxy 2>/dev/null || true
@@ -216,12 +271,12 @@ echo -e "${YELLOW}[5/8] Creating Nginx configuration...${NC}"
 
 mkdir -p nginx/conf.d
 
-cat > nginx/conf.d/doh.conf << 'EOFNGINX'
+cat > nginx/conf.d/doh.conf << EOFNGINX
 server {
     listen 443 ssl;
     listen [::]:443 ssl;
     
-    server_name bypass.440.info;
+    server_name $DOMAIN_NAME;
     
     ssl_certificate /etc/nginx/ssl/selfsigned.crt;
     ssl_certificate_key /etc/nginx/ssl/selfsigned.key;
@@ -240,8 +295,8 @@ server {
 
 server {
     listen 80;
-    server_name bypass.440.info;
-    return 301 https://$host$request_uri;
+    server_name $DOMAIN_NAME;
+    return 301 https://\$host\$request_uri;
 }
 EOFNGINX
 
@@ -251,10 +306,10 @@ echo -e "${GREEN}✅ Nginx configured${NC}"
 echo ""
 echo -e "${YELLOW}[6/8] Setting up SSL certificates...${NC}"
 
-if [ -f /etc/letsencrypt/live/bypass.440.info/fullchain.pem ]; then
+if [ -f /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem ]; then
     echo "Using Let's Encrypt certificate"
-    cp /etc/letsencrypt/live/bypass.440.info/fullchain.pem ssl/selfsigned.crt
-    cp /etc/letsencrypt/live/bypass.440.info/privkey.pem ssl/selfsigned.key
+    cp /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem ssl/selfsigned.crt
+    cp /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem ssl/selfsigned.key
     chmod 644 ssl/selfsigned.crt
     chmod 600 ssl/selfsigned.key
     echo -e "${GREEN}✅ Let's Encrypt certificate copied${NC}"
@@ -263,10 +318,11 @@ else
     openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
         -keyout ssl/selfsigned.key \
         -out ssl/selfsigned.crt \
-        -subj "/CN=bypass.440.info" 2>/dev/null
+        -subj "/CN=$DOMAIN_NAME" 2>/dev/null
     chmod 644 ssl/selfsigned.crt
     chmod 600 ssl/selfsigned.key
     echo -e "${GREEN}✅ Self-signed certificate created${NC}"
+    echo -e "${YELLOW}⚠ Note: For production, get Let's Encrypt certificate${NC}"
 fi
 
 # Step 7: Install and configure SNIProxy
@@ -276,7 +332,10 @@ echo -e "${YELLOW}[7/8] Installing and configuring SNIProxy...${NC}"
 apt-get update -qq
 apt-get install -y sniproxy
 
-cat > /etc/sniproxy.conf << 'EOFSNI'
+# Escape domain for regex
+DOMAIN_ESCAPED=$(echo "$DOMAIN_NAME" | sed 's/\./\\./g')
+
+cat > /etc/sniproxy.conf << EOFSNI
 user daemon
 
 pidfile /var/run/sniproxy.pid
@@ -300,7 +359,7 @@ listen 443 {
 
 table https_hosts {
     # DoH server - route to local nginx
-    bypass\.440\.info$ 127.0.0.1:8443
+    $DOMAIN_ESCAPED\$ 127.0.0.1:8443
     
     # Xbox domains - route to real servers
     .*\.xboxlive\.com$ *
@@ -343,7 +402,7 @@ fi
 echo ""
 echo -e "${YELLOW}[8/8] Starting Docker containers...${NC}"
 
-docker-compose up -d
+$DOCKER_COMPOSE_CMD up -d
 sleep 8
 
 # Verify containers are running
@@ -395,15 +454,21 @@ echo -e "${GREEN}✅ Clean Rebuild Complete!${NC}"
 echo "================================================"
 echo ""
 echo "Services Status:"
-docker-compose ps
+$DOCKER_COMPOSE_CMD ps
 echo ""
 echo "SNIProxy Status:"
 systemctl status sniproxy --no-pager | head -5
 echo ""
 echo "Test DoH:"
-echo "  curl -H 'accept: application/dns-json' 'https://bypass.440.info/dns-query?name=xboxlive.com&type=A'"
+echo "  curl -H 'accept: application/dns-json' 'https://$DOMAIN_NAME/dns-query?name=xboxlive.com&type=A'"
 echo ""
 echo "Expected: Should return VPS IP ($VPS_IP)"
+echo ""
+echo "Configure your router DoH URL:"
+echo "  https://$DOMAIN_NAME/dns-query"
+echo ""
+echo "To get Let's Encrypt certificate (recommended):"
+echo "  ./scripts/setup/setup-letsencrypt.sh"
 echo ""
 echo "================================================"
 
