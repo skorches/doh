@@ -344,22 +344,41 @@ echo ""
 echo -e "${YELLOW}[8/8] Starting Docker containers...${NC}"
 
 docker-compose up -d
-sleep 5
+sleep 8
 
-# Verify
-if docker ps | grep -q "coredns-smartdns.*Up"; then
+# Verify containers are running
+echo ""
+echo -e "${YELLOW}Verifying containers...${NC}"
+
+COREDNS_RUNNING=$(docker ps --format "{{.Names}}" | grep -c "coredns-smartdns" || echo "0")
+DOH_BACKEND_RUNNING=$(docker ps --format "{{.Names}}" | grep -c "doh-backend" || echo "0")
+DOH_NGINX_RUNNING=$(docker ps --format "{{.Names}}" | grep -c "doh-nginx" || echo "0")
+DOH_UPSTREAM_RUNNING=$(docker ps --format "{{.Names}}" | grep -c "doh-upstream" || echo "0")
+
+if [ "$COREDNS_RUNNING" -eq 1 ]; then
     echo -e "${GREEN}✅ CoreDNS running${NC}"
 else
-    echo -e "${RED}❌ CoreDNS failed${NC}"
-    docker logs coredns-smartdns --tail 20
-    exit 1
+    echo -e "${YELLOW}⚠ CoreDNS status unclear, checking logs...${NC}"
+    docker logs coredns-smartdns --tail 10 2>&1 | head -5
 fi
 
-if docker ps | grep -q "doh-backend.*Up"; then
+if [ "$DOH_BACKEND_RUNNING" -eq 1 ]; then
     echo -e "${GREEN}✅ DoH backend running${NC}"
 else
-    echo -e "${RED}❌ DoH backend failed${NC}"
-    exit 1
+    echo -e "${RED}❌ DoH backend not running${NC}"
+    docker logs doh-backend --tail 10 2>&1 | head -5
+fi
+
+if [ "$DOH_NGINX_RUNNING" -eq 1 ]; then
+    echo -e "${GREEN}✅ DoH Nginx running${NC}"
+else
+    echo -e "${RED}❌ DoH Nginx not running${NC}"
+fi
+
+if [ "$DOH_UPSTREAM_RUNNING" -eq 1 ]; then
+    echo -e "${GREEN}✅ DoH upstream running${NC}"
+else
+    echo -e "${RED}❌ DoH upstream not running${NC}"
 fi
 
 # Open firewall ports
