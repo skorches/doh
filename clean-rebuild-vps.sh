@@ -38,15 +38,17 @@ VPS_IP=$(curl -4 -s ifconfig.me)
 echo -e "${GREEN}VPS IP: $VPS_IP${NC}"
 echo ""
 
-# Step 1: Stop all services
-echo -e "${YELLOW}[1/8] Stopping all services...${NC}"
+# Step 1: Stop all services and clean up Docker
+echo -e "${YELLOW}[1/8] Stopping all services and cleaning up...${NC}"
 docker-compose down 2>/dev/null || true
+docker-compose rm -f 2>/dev/null || true
+docker network prune -f 2>/dev/null || true
 systemctl stop sniproxy 2>/dev/null || true
 systemctl stop haproxy 2>/dev/null || true
 pkill -9 sniproxy 2>/dev/null || true
 pkill -9 haproxy 2>/dev/null || true
-sleep 2
-echo -e "${GREEN}✅ Services stopped${NC}"
+sleep 3
+echo -e "${GREEN}✅ Services stopped and Docker cleaned${NC}"
 
 # Step 2: Clean up old files
 echo ""
