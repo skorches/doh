@@ -283,13 +283,20 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
     
+    # DoH endpoint - proxy to backend
     location /dns-query {
         proxy_pass http://doh-backend:8053;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
         proxy_connect_timeout 10s;
         proxy_send_timeout 10s;
         proxy_read_timeout 10s;
+    }
+    
+    # Root page - show info
+    location = / {
+        return 200 "DNS over HTTPS (DoH) Server\n\nEndpoint: https://$DOMAIN_NAME/dns-query\n\nThis is a DoH server for DNS queries.\n\nTo test:\n  curl -H 'accept: application/dns-json' 'https://$DOMAIN_NAME/dns-query?name=google.com&type=A'\n\nConfigure in your router's DoH settings:\n  https://$DOMAIN_NAME/dns-query\n";
+        add_header Content-Type text/plain;
     }
 }
 
