@@ -70,7 +70,7 @@ else
         cat > /etc/systemd/system/sniproxy.service.d/override.conf << 'EOFCONF'
 [Service]
 Type=forking
-PIDFile=/var/run/sniproxy.pid
+PIDFile=/run/sniproxy.pid
 EOFCONF
         echo -e "${GREEN}✅ Created systemd override (safer than modifying system file)${NC}"
     fi
