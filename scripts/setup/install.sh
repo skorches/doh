@@ -22,31 +22,100 @@ echo ""
 # Check prerequisites
 echo -e "${YELLOW}Checking prerequisites...${NC}"
 
+# Check and install curl first (needed for Docker installation)
+if ! command -v curl &> /dev/null; then
+    echo -e "${YELLOW}curl not found, installing...${NC}"
+    apt-get update -qq
+    apt-get install -y curl
+fi
+
+# Check and install Docker
 if ! command -v docker &> /dev/null; then
-    echo -e "${RED}❌ Docker is not installed${NC}"
-    echo "Install Docker: curl -fsSL https://get.docker.com | sh"
-    exit 1
+    echo -e "${YELLOW}Docker not found, installing...${NC}"
+    echo "This will install Docker using the official installer."
+    read -p "Continue with Docker installation? (y/n): " REPLY
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Docker installation cancelled"
+        exit 1
+    fi
+    
+    curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+    sh /tmp/get-docker.sh
+    rm /tmp/get-docker.sh
+    
+    # Start Docker service
+    systemctl start docker
+    systemctl enable docker
+    
+    # Wait for Docker to be ready
+    sleep 3
+    
+    echo -e "${GREEN}✅ Docker installed${NC}"
+else
+    echo -e "${GREEN}✅ Docker already installed${NC}"
 fi
 
 # Check for docker-compose (old) or docker compose (new)
 DOCKER_COMPOSE_CMD=""
 if command -v docker-compose &> /dev/null; then
     DOCKER_COMPOSE_CMD="docker-compose"
+    echo -e "${GREEN}✅ docker-compose found${NC}"
 elif docker compose version &> /dev/null 2>&1; then
     DOCKER_COMPOSE_CMD="docker compose"
+    echo -e "${GREEN}✅ docker compose found${NC}"
 else
-    echo -e "${RED}❌ Docker Compose is not installed${NC}"
-    echo "Install Docker Compose or use: apt-get install docker-compose"
-    exit 1
+    echo -e "${YELLOW}Docker Compose not found, installing...${NC}"
+    apt-get update -qq
+    apt-get install -y docker-compose-plugin || apt-get install -y docker-compose
+    sleep 2
+    
+    # Check again
+    if command -v docker-compose &> /dev/null; then
+        DOCKER_COMPOSE_CMD="docker-compose"
+        echo -e "${GREEN}✅ docker-compose installed${NC}"
+    elif docker compose version &> /dev/null 2>&1; then
+        DOCKER_COMPOSE_CMD="docker compose"
+        echo -e "${GREEN}✅ docker compose installed${NC}"
+    else
+        echo -e "${RED}❌ Failed to install Docker Compose${NC}"
+        exit 1
+    fi
 fi
 
-if ! command -v curl &> /dev/null; then
-    echo -e "${RED}❌ curl is not installed${NC}"
-    echo "Install: apt-get update && apt-get install -y curl"
-    exit 1
+# Check for additional dependencies
+echo -e "${YELLOW}Checking additional dependencies...${NC}"
+
+# Check and install openssl (needed for SSL certificates)
+if ! command -v openssl &> /dev/null; then
+    echo -e "${YELLOW}openssl not found, installing...${NC}"
+    apt-get update -qq
+    apt-get install -y openssl
+    echo -e "${GREEN}✅ openssl installed${NC}"
+else
+    echo -e "${GREEN}✅ openssl found${NC}"
 fi
 
-echo -e "${GREEN}✅ Prerequisites OK${NC}"
+# Check and install ss (iproute2) - needed to check ports
+if ! command -v ss &> /dev/null; then
+    echo -e "${YELLOW}ss (iproute2) not found, installing...${NC}"
+    apt-get update -qq
+    apt-get install -y iproute2
+    echo -e "${GREEN}✅ iproute2 installed${NC}"
+else
+    echo -e "${GREEN}✅ ss (iproute2) found${NC}"
+fi
+
+# Check and install ufw (firewall) - optional but recommended
+if ! command -v ufw &> /dev/null; then
+    echo -e "${YELLOW}ufw not found, installing...${NC}"
+    apt-get update -qq
+    apt-get install -y ufw
+    echo -e "${GREEN}✅ ufw installed${NC}"
+else
+    echo -e "${GREEN}✅ ufw found${NC}"
+fi
+
+echo -e "${GREEN}✅ All prerequisites OK${NC}"
 echo ""
 
 # Get configuration
