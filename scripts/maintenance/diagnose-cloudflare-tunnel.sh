@@ -145,6 +145,7 @@ echo -e "${YELLOW}[5/6] Checking DNS Configuration...${NC}"
 # Check if xbox-hosts still has VPS IP
 if [ -f coredns/xbox-hosts ]; then
     XBOX_IN_HOSTS=$(grep -c "xboxlive.com" coredns/xbox-hosts 2>/dev/null || echo "0")
+    XBOX_IN_HOSTS=${XBOX_IN_HOSTS:-0}
     if [ "$XBOX_IN_HOSTS" -gt 0 ]; then
         echo -e "${RED}❌ PROBLEM: xbox-hosts still contains xboxlive.com${NC}"
         echo "   This means CoreDNS will return VPS IP, not Cloudflare IP."
