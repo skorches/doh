@@ -19,34 +19,60 @@ echo "Fixing SNIProxy Systemd Service"
 echo "================================================"
 echo ""
 
-SNIPROXY_SERVICE="/etc/systemd/system/sniproxy.service"
+# Find SNIProxy service file (could be in different locations)
+SNIPROXY_SERVICE=""
+for location in \
+    "/etc/systemd/system/sniproxy.service" \
+    "/lib/systemd/system/sniproxy.service" \
+    "/usr/lib/systemd/system/sniproxy.service"; do
+    if [ -f "$location" ]; then
+        SNIPROXY_SERVICE="$location"
+        break
+    fi
+done
 
-# Check if service file exists
-if [ ! -f "$SNIPROXY_SERVICE" ]; then
-    echo -e "${RED}❌ SNIProxy service file not found${NC}"
-    exit 1
+# If not found, create override or use systemd drop-in
+if [ -z "$SNIPROXY_SERVICE" ]; then
+    echo -e "${YELLOW}SNIProxy service file not found in standard locations${NC}"
+    echo "Creating systemd override instead..."
+    
+    # Create override directory
+    mkdir -p /etc/systemd/system/sniproxy.service.d/
+    
+    # Create override file
+    cat > /etc/systemd/system/sniproxy.service.d/override.conf << 'EOFCONF'
+[Service]
+Type=forking
+PIDFile=/var/run/sniproxy.pid
+EOFCONF
+    
+    echo -e "${GREEN}✅ Created systemd override${NC}"
+    SNIPROXY_SERVICE="/etc/systemd/system/sniproxy.service.d/override.conf"
+else
+    echo -e "${GREEN}Found service file: $SNIPROXY_SERVICE${NC}"
 fi
 
-echo -e "${YELLOW}Updating SNIProxy service file...${NC}"
+echo -e "${YELLOW}Updating SNIProxy service configuration...${NC}"
 
-# Backup
-cp "$SNIPROXY_SERVICE" "${SNIPROXY_SERVICE}.backup.$(date +%Y%m%d_%H%M%S)"
-
-# Check if already fixed
-if grep -q "Type=forking" "$SNIPROXY_SERVICE"; then
-    echo -e "${GREEN}✅ Service already configured for forking${NC}"
+# If it's an override file, we're done
+if [ "$SNIPROXY_SERVICE" = "/etc/systemd/system/sniproxy.service.d/override.conf" ]; then
+    echo -e "${GREEN}✅ Override file created${NC}"
 else
-    # Add Type=forking and PIDFile to [Service] section
-    if grep -q "\[Service\]" "$SNIPROXY_SERVICE"; then
-        sed -i '/\[Service\]/a Type=forking\nPIDFile=/var/run/sniproxy.pid' "$SNIPROXY_SERVICE"
-        echo -e "${GREEN}✅ Added Type=forking and PIDFile${NC}"
+    # Backup original service file
+    cp "$SNIPROXY_SERVICE" "${SNIPROXY_SERVICE}.backup.$(date +%Y%m%d_%H%M%S)"
+    
+    # Check if already fixed
+    if grep -q "Type=forking" "$SNIPROXY_SERVICE"; then
+        echo -e "${GREEN}✅ Service already configured for forking${NC}"
     else
-        # Add [Service] section if it doesn't exist
-        echo "" >> "$SNIPROXY_SERVICE"
-        echo "[Service]" >> "$SNIPROXY_SERVICE"
-        echo "Type=forking" >> "$SNIPROXY_SERVICE"
-        echo "PIDFile=/var/run/sniproxy.pid" >> "$SNIPROXY_SERVICE"
-        echo -e "${GREEN}✅ Added [Service] section with forking config${NC}"
+        # Create override instead of modifying system file
+        mkdir -p /etc/systemd/system/sniproxy.service.d/
+        cat > /etc/systemd/system/sniproxy.service.d/override.conf << 'EOFCONF'
+[Service]
+Type=forking
+PIDFile=/var/run/sniproxy.pid
+EOFCONF
+        echo -e "${GREEN}✅ Created systemd override (safer than modifying system file)${NC}"
     fi
 fi
 
