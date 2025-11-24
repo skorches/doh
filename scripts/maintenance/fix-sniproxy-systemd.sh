@@ -81,10 +81,25 @@ echo ""
 echo -e "${YELLOW}Reloading systemd...${NC}"
 systemctl daemon-reload
 
-# Kill any leftover processes
+# Kill any leftover processes (more aggressively)
 echo -e "${YELLOW}Cleaning up old processes...${NC}"
 pkill -9 sniproxy 2>/dev/null || true
-sleep 1
+# Kill by PID if pkill didn't work
+ps aux | grep sniproxy | grep -v grep | awk '{print $2}' | xargs kill -9 2>/dev/null || true
+sleep 2
+
+# Check what's using port 443
+echo -e "${YELLOW}Checking port 443...${NC}"
+PORT_443_USAGE=$(ss -tlnp | grep ":443" || echo "")
+if [ -n "$PORT_443_USAGE" ]; then
+    echo -e "${YELLOW}⚠ Port 443 is in use:${NC}"
+    echo "$PORT_443_USAGE"
+    echo ""
+    echo -e "${YELLOW}Killing processes on port 443...${NC}"
+    # Get PIDs using port 443 and kill them
+    ss -tlnp | grep ":443" | grep -oP 'pid=\K[0-9]+' | xargs kill -9 2>/dev/null || true
+    sleep 2
+fi
 
 # Restart SNIProxy
 echo ""
