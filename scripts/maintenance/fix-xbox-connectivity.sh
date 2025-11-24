@@ -34,13 +34,32 @@ echo -e "${GREEN}✅ Firewall ports opened${NC}"
 
 # Step 2: Check if Xbox is actually resolving to VPS IP
 echo ""
-echo -e "${YELLOW}[2/4] Testing DNS resolution...${NC}"
-RESULT=$(curl -s -H 'accept: application/dns-json' "http://localhost:8053/dns-query?name=xboxlive.com&type=A" 2>&1)
-if echo "$RESULT" | grep -q "$VPS_IP"; then
+echo -e "${YELLOW}[2/6] Testing DNS resolution...${NC}"
+
+# First check if doh-backend container is running
+if ! docker ps | grep -q doh-backend; then
+    echo -e "${RED}❌ doh-backend container is not running${NC}"
+    echo "Starting containers..."
+    docker-compose up -d 2>/dev/null || docker compose up -d
+    sleep 5
+fi
+
+# Test DoH backend with timeout
+echo "Testing DoH backend..."
+RESULT=$(timeout 5 curl -s -H 'accept: application/dns-json' "http://localhost:8053/dns-query?name=xboxlive.com&type=A" 2>&1 || echo "TIMEOUT")
+
+if [ "$RESULT" = "TIMEOUT" ]; then
+    echo -e "${RED}❌ DoH backend not responding (timeout)${NC}"
+    echo "Checking doh-backend logs..."
+    docker logs doh-backend --tail 10 2>&1 | head -5
+elif echo "$RESULT" | grep -q "$VPS_IP"; then
     echo -e "${GREEN}✅ xboxlive.com resolves to VPS IP${NC}"
+elif echo "$RESULT" | grep -q "Answer"; then
+    echo -e "${YELLOW}⚠ xboxlive.com resolved but not to VPS IP${NC}"
+    echo "Response: $RESULT" | head -3
 else
-    echo -e "${RED}❌ xboxlive.com does NOT resolve to VPS IP${NC}"
-    echo "$RESULT"
+    echo -e "${RED}❌ DNS query failed${NC}"
+    echo "Response: $RESULT"
 fi
 
 # Step 3: Check if VPS can reach Xbox servers
