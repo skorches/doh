@@ -17,7 +17,7 @@ fi
 echo "================================================"
 echo "Let's Encrypt SSL Certificate Setup"
 echo "================================================"
-echo ""
+    echo ""
 
 INSTALL_DIR="/root/doh"
 cd "$INSTALL_DIR"
@@ -66,7 +66,7 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
 fi
 
 # Ask for email (required for Let's Encrypt)
-echo ""
+    echo ""
 read -p "Enter your email for Let's Encrypt (required): " EMAIL
 if [ -z "$EMAIL" ]; then
     echo -e "${RED}Email is required for Let's Encrypt!${NC}"
@@ -75,7 +75,7 @@ fi
 
 # Install certbot if not installed
 if ! command -v certbot &> /dev/null; then
-    echo ""
+echo ""
     echo -e "${YELLOW}Installing certbot...${NC}"
     apt-get update -qq
     apt-get install -y certbot

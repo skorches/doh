@@ -261,6 +261,83 @@ $VPS_IP discord.gg
 $VPS_IP discordapp.com
 $VPS_IP discordapp.net
 $VPS_IP discord.media
+
+# === GAME PUBLISHERS ===
+# Activision (Call of Duty, Warzone)
+$VPS_IP activision.com
+$VPS_IP www.activision.com
+$VPS_IP callofduty.com
+$VPS_IP www.callofduty.com
+$VPS_IP sledgehammergames.com
+$VPS_IP infinityward.com
+$VPS_IP treyarch.com
+$VPS_IP activisionblizzard.com
+
+# Electronic Arts (Battlefield, FIFA, etc.)
+$VPS_IP ea.com
+$VPS_IP www.ea.com
+$VPS_IP easports.com
+$VPS_IP www.easports.com
+$VPS_IP eamobile.com
+$VPS_IP swtor.com
+$VPS_IP tnt-ea.com
+$VPS_IP origin.com
+$VPS_IP www.origin.com
+$VPS_IP eaplay.com
+
+# Ubisoft (Assassin's Creed, etc.)
+$VPS_IP ubisoft.com
+$VPS_IP www.ubisoft.com
+$VPS_IP uplay.com
+$VPS_IP ubisoftconnect.com
+$VPS_IP ubisoftstore.com
+
+# Epic Games (Fortnite)
+$VPS_IP epicgames.com
+$VPS_IP www.epicgames.com
+$VPS_IP unrealengine.com
+$VPS_IP fortnite.com
+
+# Rockstar (GTA Online)
+$VPS_IP rockstargames.com
+$VPS_IP www.rockstargames.com
+$VPS_IP socialclub.rockstargames.com
+
+# 2K Games (NBA 2K, etc.)
+$VPS_IP 2k.com
+$VPS_IP www.2k.com
+$VPS_IP 2ksports.com
+$VPS_IP www.2ksports.com
+$VPS_IP take2games.com
+
+# Blizzard
+$VPS_IP blizzard.com
+$VPS_IP www.blizzard.com
+$VPS_IP battle.net
+$VPS_IP www.battle.net
+
+# Riot Games
+$VPS_IP riotgames.com
+$VPS_IP www.riotgames.com
+$VPS_IP leagueoflegends.com
+$VPS_IP valorant.com
+
+# Square Enix
+$VPS_IP square-enix.com
+$VPS_IP www.square-enix.com
+$VPS_IP square-enix-games.com
+
+# Bethesda
+$VPS_IP bethesda.net
+$VPS_IP www.bethesda.net
+$VPS_IP bethesda.com
+$VPS_IP www.bethesda.com
+
+# CD Projekt
+$VPS_IP cdprojekt.com
+$VPS_IP www.cdprojekt.com
+$VPS_IP gog.com
+$VPS_IP www.gog.com
 EOFHOSTS
 
 echo -e "${GREEN}✅ CoreDNS configured${NC}"
@@ -387,6 +464,65 @@ table https_hosts {
     .*\.discordapp\.net$ *
     .*\.discord\.gg$ *
     .*\.discord\.media$ *
+    
+    # Game Publisher domains
+    # Activision
+    .*\.activision\.com$ *
+    .*\.callofduty\.com$ *
+    .*\.sledgehammergames\.com$ *
+    .*\.infinityward\.com$ *
+    .*\.treyarch\.com$ *
+    .*\.activisionblizzard\.com$ *
+    
+    # Electronic Arts
+    .*\.ea\.com$ *
+    .*\.easports\.com$ *
+    .*\.eamobile\.com$ *
+    .*\.swtor\.com$ *
+    .*\.tnt-ea\.com$ *
+    .*\.origin\.com$ *
+    .*\.eaplay\.com$ *
+    
+    # Ubisoft
+    .*\.ubisoft\.com$ *
+    .*\.uplay\.com$ *
+    .*\.ubisoftconnect\.com$ *
+    .*\.ubisoftstore\.com$ *
+    
+    # Epic Games
+    .*\.epicgames\.com$ *
+    .*\.unrealengine\.com$ *
+    .*\.fortnite\.com$ *
+    
+    # Rockstar
+    .*\.rockstargames\.com$ *
+    .*\.socialclub\.rockstargames\.com$ *
+    
+    # 2K Games
+    .*\.2k\.com$ *
+    .*\.2ksports\.com$ *
+    .*\.take2games\.com$ *
+    
+    # Blizzard
+    .*\.blizzard\.com$ *
+    .*\.battle\.net$ *
+    
+    # Riot Games
+    .*\.riotgames\.com$ *
+    .*\.leagueoflegends\.com$ *
+    .*\.valorant\.com$ *
+    
+    # Square Enix
+    .*\.square-enix\.com$ *
+    .*\.square-enix-games\.com$ *
+    
+    # Bethesda
+    .*\.bethesda\.net$ *
+    .*\.bethesda\.com$ *
+    
+    # CD Projekt
+    .*\.cdprojekt\.com$ *
+    .*\.gog\.com$ *
 }
 EOFSNI
 

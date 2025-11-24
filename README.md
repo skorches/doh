@@ -1,6 +1,14 @@
 # Xbox Smart DNS Server
 
-**Simple setup to make Xbox work in blocked regions.**
+**Simple setup to make Xbox and all games work in blocked regions.**
+
+**Works with:**
+- ✅ Xbox Live games (Halo, Forza, etc.)
+- ✅ Call of Duty / Warzone (Activision)
+- ✅ Battlefield / FIFA (EA)
+- ✅ Fortnite (Epic Games)
+- ✅ GTA Online (Rockstar)
+- ✅ And all major game publishers!
 
 ## What You Need
 
@@ -63,8 +71,12 @@ Xbox → Settings → Network → Test network connection
 ## What Gets Installed
 
 - DoH Server (DNS over HTTPS)
-- Smart DNS (returns VPS IP for Xbox domains)
-- SNI Proxy (forwards Xbox traffic)
+- Smart DNS (returns VPS IP for Xbox and game domains)
+- SNI Proxy (forwards Xbox and game traffic)
+- **All major game publishers pre-configured:**
+  - Activision (Call of Duty, Warzone)
+  - Electronic Arts (Battlefield, FIFA, etc.)
+  - Ubisoft, Epic Games, Rockstar, 2K Games, and more!
 - All configured automatically!
 
 ## Troubleshooting
