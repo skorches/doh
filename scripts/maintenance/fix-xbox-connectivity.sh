@@ -44,9 +44,14 @@ if ! docker ps | grep -q doh-backend; then
     sleep 5
 fi
 
-# Test DoH backend with timeout
-echo "Testing DoH backend..."
-RESULT=$(timeout 5 curl -s -H 'accept: application/dns-json' "http://localhost:8053/dns-query?name=xboxlive.com&type=A" 2>&1 || echo "TIMEOUT")
+# Test DoH backend through Nginx (port 8443) or directly if exposed
+echo "Testing DoH endpoint..."
+# Try through Nginx first (internal port 8443)
+RESULT=$(timeout 5 curl -k -s -H 'accept: application/dns-json' "https://localhost:8443/dns-query?name=xboxlive.com&type=A" 2>&1 || echo "TIMEOUT")
+# If that fails, try direct backend (if exposed)
+if [ "$RESULT" = "TIMEOUT" ] || [ -z "$RESULT" ]; then
+    RESULT=$(timeout 5 curl -s -H 'accept: application/dns-json' "http://localhost:8053/dns-query?name=xboxlive.com&type=A" 2>&1 || echo "TIMEOUT")
+fi
 
 if [ "$RESULT" = "TIMEOUT" ]; then
     echo -e "${RED}❌ DoH backend not responding (timeout)${NC}"
