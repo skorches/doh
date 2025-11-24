@@ -52,15 +52,59 @@ else
     echo -e "${YELLOW}⚠ VPS cannot reach Xbox servers (might be blocked)${NC}"
 fi
 
-# Step 4: Check SNIProxy config
+# Step 4: Check SNIProxy status
 echo ""
-echo -e "${YELLOW}[4/4] Verifying SNIProxy configuration...${NC}"
+echo -e "${YELLOW}[4/6] Checking SNIProxy status...${NC}"
 
-# Test SNIProxy can forward
-if timeout 5 curl -v --resolve xboxlive.com:443:$VPS_IP https://xboxlive.com 2>&1 | grep -q "200\|301\|302"; then
-    echo -e "${GREEN}✅ SNIProxy can forward Xbox traffic${NC}"
+if systemctl is-active --quiet sniproxy; then
+    echo -e "${GREEN}✅ SNIProxy is running${NC}"
 else
-    echo -e "${YELLOW}⚠ SNIProxy forwarding test inconclusive${NC}"
+    echo -e "${RED}❌ SNIProxy is NOT running${NC}"
+    echo ""
+    echo -e "${YELLOW}Checking SNIProxy logs...${NC}"
+    journalctl -u sniproxy -n 10 --no-pager
+    echo ""
+    echo -e "${YELLOW}Attempting to start SNIProxy...${NC}"
+    systemctl start sniproxy
+    sleep 2
+    
+    if systemctl is-active --quiet sniproxy; then
+        echo -e "${GREEN}✅ SNIProxy started successfully${NC}"
+    else
+        echo -e "${RED}❌ SNIProxy failed to start${NC}"
+        echo "Check config: cat /etc/sniproxy.conf"
+    fi
+fi
+
+# Step 5: Check if port 443 is in use
+echo ""
+echo -e "${YELLOW}[5/6] Checking port 443...${NC}"
+
+PORT_443_USAGE=$(ss -tlnp | grep ":443" || echo "")
+if [ -z "$PORT_443_USAGE" ]; then
+    echo -e "${RED}❌ Nothing listening on port 443${NC}"
+    echo "SNIProxy should be listening on port 443"
+elif echo "$PORT_443_USAGE" | grep -q "sniproxy"; then
+    echo -e "${GREEN}✅ SNIProxy is listening on port 443${NC}"
+else
+    echo -e "${YELLOW}⚠ Port 443 is in use by something else:${NC}"
+    echo "$PORT_443_USAGE"
+    echo ""
+    echo "This might prevent SNIProxy from starting"
+fi
+
+# Step 6: Test SNIProxy forwarding
+echo ""
+echo -e "${YELLOW}[6/6] Testing SNIProxy forwarding...${NC}"
+
+if systemctl is-active --quiet sniproxy; then
+    if timeout 5 curl -k -v --resolve xboxlive.com:443:$VPS_IP https://xboxlive.com 2>&1 | grep -q "200\|301\|302"; then
+        echo -e "${GREEN}✅ SNIProxy can forward Xbox traffic${NC}"
+    else
+        echo -e "${YELLOW}⚠ SNIProxy forwarding test inconclusive${NC}"
+    fi
+else
+    echo -e "${RED}❌ Cannot test - SNIProxy is not running${NC}"
 fi
 
 echo ""
