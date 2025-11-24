@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Fix SNIProxy timeouts to fail faster when Xbox hangs connections
+# Note: SNIProxy doesn't support timeout settings
+# This script explains the limitation and suggests alternatives
 
 set -e
 
@@ -16,7 +17,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 echo "================================================"
-echo "Fixing SNIProxy Timeout Settings"
+echo "SNIProxy Timeout Information"
 echo "================================================"
 echo ""
 
@@ -27,213 +28,108 @@ if [ ! -f "$SNIPROXY_CONF" ]; then
     exit 1
 fi
 
-echo -e "${YELLOW}Current SNIProxy config has no timeout settings${NC}"
-echo -e "${YELLOW}Adding timeout settings to fail faster...${NC}"
+echo -e "${YELLOW}IMPORTANT: SNIProxy doesn't support timeout directives${NC}"
+echo ""
+echo "SNIProxy is a simple SNI-based proxy that doesn't have"
+echo "configurable timeout settings. Timeouts are handled by"
+echo "the OS TCP stack (typically 60-120 seconds)."
 echo ""
 
-# Backup original config
-cp "$SNIPROXY_CONF" "${SNIPROXY_CONF}.backup.$(date +%Y%m%d_%H%M%S)"
-echo -e "${GREEN}✅ Backed up config${NC}"
+# Check current config
+echo -e "${BLUE}Current SNIProxy config:${NC}"
+echo "----------------------------------------"
+head -20 "$SNIPROXY_CONF"
+echo ""
 
-# Check if timeout settings already exist
-if grep -q "timeout" "$SNIPROXY_CONF"; then
-    echo -e "${YELLOW}⚠ Timeout settings already exist${NC}"
-    echo "Current timeout settings:"
-    grep -i timeout "$SNIPROXY_CONF" || echo "None found"
-    read -p "Overwrite? (y/n): " REPLY
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Cancelled"
-        exit 0
+# Show connection durations from logs
+if [ -f /var/log/sniproxy/https_access.log ]; then
+    echo -e "${BLUE}Recent connection durations from logs:${NC}"
+    tail -10 /var/log/sniproxy/https_access.log | grep -oE "[0-9]+\.[0-9]+ seconds" | tail -5 || echo "No duration data"
+    echo ""
+    
+    LONG_CONNECTIONS=$(tail -50 /var/log/sniproxy/https_access.log | grep -oE "[0-9]+\.[0-9]+ seconds" | awk -F. '{if ($1 > 60) print $0}' | wc -l)
+    if [ "$LONG_CONNECTIONS" -gt 0 ]; then
+        echo -e "${YELLOW}⚠ Found $LONG_CONNECTIONS connections taking > 60 seconds${NC}"
+        echo "This suggests Xbox is hanging connections."
     fi
 fi
 
-# Read domain from config (needed for DoH routing)
-DOMAIN_NAME=$(grep -oP '\$[^$]+\$' "$SNIPROXY_CONF" | head -1 | sed 's/\$//g' | sed 's/\\\././g' || echo "")
-if [ -z "$DOMAIN_NAME" ]; then
-    # Try to extract from table entry
-    DOMAIN_NAME=$(grep -oP '127\.0\.0\.1:8443' "$SNIPROXY_CONF" -B 1 | grep -oP '[a-zA-Z0-9.-]+' | head -1 || echo "")
-fi
-
-DOMAIN_ESCAPED=$(echo "$DOMAIN_NAME" | sed 's/\./\\./g' 2>/dev/null || echo "")
-
-echo -e "${BLUE}Detected domain: ${DOMAIN_NAME:-"unknown"}${NC}"
+echo ""
+echo "================================================"
+echo "Solutions for Long Timeouts"
+echo "================================================"
+echo ""
+echo "Since SNIProxy doesn't support timeout settings,"
+echo "here are alternative solutions:"
+echo ""
+echo "1. REDUCE OS TCP TIMEOUTS (System-level)"
+echo "   Edit /etc/sysctl.conf and add:"
+echo "   net.ipv4.tcp_fin_timeout = 30"
+echo "   net.ipv4.tcp_keepalive_time = 30"
+echo "   Then run: sysctl -p"
+echo ""
+echo "2. TRY NON-RUSSIAN VPS (Recommended)"
+echo "   Xbox might be blocking Russian IPs."
+echo "   Deploy on: Germany, Netherlands, or US VPS."
+echo ""
+echo "3. USE NGINX INSTEAD OF SNIPROXY"
+echo "   Nginx has better timeout control."
+echo "   But requires more configuration."
+echo ""
+echo "4. CHECK IF XBOX IS BLOCKING"
+echo "   The 6-8 minute timeouts suggest Xbox"
+echo "   is detecting proxy and silently dropping."
 echo ""
 
-# Create new config with timeout settings
-cat > "$SNIPROXY_CONF" << EOFSNI
-user daemon
-
-pidfile /var/run/sniproxy.pid
-
-# Timeout settings to fail faster when Xbox hangs connections
-# Default is 30 seconds, but we'll set shorter for faster failure
-resolver {
-    nameserver 8.8.8.8
-    mode ipv4_only
-}
-
-# Connection timeouts (in milliseconds)
-# 10000 = 10 seconds - fail fast if Xbox hangs
-timeout connect 10000
-timeout client 30000
-timeout server 30000
-
-error_log {
-    syslog daemon
-    priority notice
-}
-
-listen 443 {
-    proto tls
-    table https_hosts
+read -p "Would you like to reduce OS TCP timeouts? (y/n): " REPLY
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo ""
+    echo -e "${YELLOW}Reducing OS TCP timeouts...${NC}"
     
-    fallback 127.0.0.1:8443
+    # Backup sysctl.conf
+    if [ -f /etc/sysctl.conf ]; then
+        cp /etc/sysctl.conf /etc/sysctl.conf.backup.$(date +%Y%m%d_%H%M%S)
+    fi
     
-    access_log {
-        filename /var/log/sniproxy/https_access.log
-        priority notice
-    }
-}
-
-table https_hosts {
-    # DoH server - route to local nginx
-EOFSNI
-
-# Add domain entry if found
-if [ -n "$DOMAIN_ESCAPED" ]; then
-    echo "    $DOMAIN_ESCAPED\$ 127.0.0.1:8443" >> "$SNIPROXY_CONF"
+    # Add timeout settings
+    if ! grep -q "tcp_fin_timeout" /etc/sysctl.conf 2>/dev/null; then
+        echo "" >> /etc/sysctl.conf
+        echo "# Reduce TCP timeouts for faster failure" >> /etc/sysctl.conf
+        echo "net.ipv4.tcp_fin_timeout = 30" >> /etc/sysctl.conf
+        echo "net.ipv4.tcp_keepalive_time = 30" >> /etc/sysctl.conf
+        echo "net.ipv4.tcp_keepalive_probes = 3" >> /etc/sysctl.conf
+        echo "net.ipv4.tcp_keepalive_intvl = 10" >> /etc/sysctl.conf
+        echo -e "${GREEN}✅ Added TCP timeout settings to /etc/sysctl.conf${NC}"
+    else
+        echo -e "${YELLOW}⚠ TCP timeout settings already exist${NC}"
+    fi
+    
+    # Apply immediately
+    sysctl -w net.ipv4.tcp_fin_timeout=30
+    sysctl -w net.ipv4.tcp_keepalive_time=30
+    sysctl -w net.ipv4.tcp_keepalive_probes=3
+    sysctl -w net.ipv4.tcp_keepalive_intvl=10
+    
+    echo -e "${GREEN}✅ TCP timeouts reduced (30 seconds)${NC}"
+    echo ""
+    echo "Note: These settings will persist after reboot."
+    echo "To revert, edit /etc/sysctl.conf and run: sysctl -p"
 else
-    echo "    # Add your DoH domain here" >> "$SNIPROXY_CONF"
+    echo ""
+    echo -e "${YELLOW}Skipping TCP timeout changes${NC}"
 fi
 
-# Add all the domain patterns from backup
-cat >> "$SNIPROXY_CONF" << 'EOFSNI'
-    
-    # Xbox domains - route to real servers
-    .*\.xboxlive\.com$ *
-    .*\.xboxservices\.com$ *
-    .*\.xbox\.com$ *
-    .*\.live\.com$ *
-    .*\.microsoft\.com$ *
-    .*\.microsoftonline\.com$ *
-    .*\.msftncsi\.com$ *
-    .*\.msftconnecttest\.com$ *
-    .*\.windows\.com$ *
-    .*\.msn\.com$ *
-    .*\.gamepass\.com$ *
-    
-    # Discord domains
-    .*\.discord\.com$ *
-    .*\.discordapp\.com$ *
-    .*\.discordapp\.net$ *
-    .*\.discord\.gg$ *
-    .*\.discord\.media$ *
-    
-    # Game Publisher domains
-    # Activision
-    .*\.activision\.com$ *
-    .*\.callofduty\.com$ *
-    .*\.sledgehammergames\.com$ *
-    .*\.infinityward\.com$ *
-    .*\.treyarch\.com$ *
-    .*\.activisionblizzard\.com$ *
-    
-    # Electronic Arts
-    .*\.ea\.com$ *
-    .*\.easports\.com$ *
-    .*\.eamobile\.com$ *
-    .*\.swtor\.com$ *
-    .*\.tnt-ea\.com$ *
-    .*\.origin\.com$ *
-    .*\.eaplay\.com$ *
-    
-    # Ubisoft
-    .*\.ubisoft\.com$ *
-    .*\.uplay\.com$ *
-    .*\.ubisoftconnect\.com$ *
-    .*\.ubisoftstore\.com$ *
-    
-    # Epic Games
-    .*\.epicgames\.com$ *
-    .*\.unrealengine\.com$ *
-    .*\.fortnite\.com$ *
-    
-    # Rockstar
-    .*\.rockstargames\.com$ *
-    .*\.socialclub\.rockstargames\.com$ *
-    
-    # 2K Games
-    .*\.2k\.com$ *
-    .*\.2ksports\.com$ *
-    .*\.take2games\.com$ *
-    
-    # Blizzard
-    .*\.blizzard\.com$ *
-    .*\.battle\.net$ *
-    
-    # Riot Games
-    .*\.riotgames\.com$ *
-    .*\.leagueoflegends\.com$ *
-    .*\.valorant\.com$ *
-    
-    # Square Enix
-    .*\.square-enix\.com$ *
-    .*\.square-enix-games\.com$ *
-    
-    # Bethesda
-    .*\.bethesda\.net$ *
-    .*\.bethesda\.com$ *
-    
-    # CD Projekt
-    .*\.cdprojekt\.com$ *
-    .*\.gog\.com$ *
-}
-EOFSNI
-
-echo -e "${GREEN}✅ Updated SNIProxy config with timeout settings${NC}"
 echo ""
-
-# Validate config
-echo -e "${YELLOW}Validating SNIProxy config...${NC}"
-if sniproxy -c "$SNIPROXY_CONF" -t 2>&1 | grep -q "configuration file is valid"; then
-    echo -e "${GREEN}✅ Config is valid${NC}"
-else
-    echo -e "${RED}❌ Config validation failed${NC}"
-    echo "Restoring backup..."
-    mv "${SNIPROXY_CONF}.backup."* "$SNIPROXY_CONF" 2>/dev/null || true
-    exit 1
-fi
-
-# Restart SNIProxy
+echo "================================================"
+echo "Summary"
+echo "================================================"
 echo ""
-echo -e "${YELLOW}Restarting SNIProxy...${NC}"
-systemctl restart sniproxy
-sleep 2
-
-if systemctl is-active --quiet sniproxy; then
-    echo -e "${GREEN}✅ SNIProxy restarted successfully${NC}"
-    echo ""
-    echo "================================================"
-    echo "Timeout Settings Applied"
-    echo "================================================"
-    echo ""
-    echo "New timeout settings:"
-    echo "  • Connect timeout: 10 seconds"
-    echo "  • Client timeout: 30 seconds"
-    echo "  • Server timeout: 30 seconds"
-    echo ""
-    echo "This will make connections fail faster when"
-    echo "Xbox hangs them (instead of waiting 6-8 minutes)."
-    echo ""
-    echo -e "${YELLOW}NOTE: This won't fix Xbox blocking Russian IPs.${NC}"
-    echo "If Xbox is blocking your VPS IP, you may need:"
-    echo "  • Non-Russian VPS (Germany, Netherlands, US)"
-    echo "  • Or different approach (VPN instead of proxy)"
-else
-    echo -e "${RED}❌ SNIProxy failed to start${NC}"
-    echo "Restoring backup..."
-    mv "${SNIPROXY_CONF}.backup."* "$SNIPROXY_CONF" 2>/dev/null || true
-    systemctl restart sniproxy
-    exit 1
-fi
-
+echo "SNIProxy doesn't support timeout configuration."
+echo "The 6-8 minute timeouts are likely because:"
+echo "  • Xbox is blocking Russian VPS IPs"
+echo "  • Xbox detects proxy and silently drops connections"
+echo ""
+echo "RECOMMENDED SOLUTION:"
+echo "  Deploy on a non-Russian VPS (Germany, Netherlands, US)"
+echo "  and run install.sh on the new VPS."
+echo ""
