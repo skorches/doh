@@ -153,14 +153,6 @@ services:
     networks:
       - doh-network
 
-  doh-upstream:
-    image: cloudflare/cloudflared:latest
-    container_name: doh-upstream
-    command: proxy-dns --address 0.0.0.0 --port 5053 --upstream https://1.1.1.1/dns-query --upstream https://1.0.0.1/dns-query
-    restart: unless-stopped
-    networks:
-      - doh-network
-
 networks:
   doh-network:
     driver: bridge
@@ -555,7 +547,6 @@ echo -e "${YELLOW}Verifying containers...${NC}"
 COREDNS_RUNNING=$(docker ps --format "{{.Names}}" | grep -c "coredns-smartdns" || echo "0")
 DOH_BACKEND_RUNNING=$(docker ps --format "{{.Names}}" | grep -c "doh-backend" || echo "0")
 DOH_NGINX_RUNNING=$(docker ps --format "{{.Names}}" | grep -c "doh-nginx" || echo "0")
-DOH_UPSTREAM_RUNNING=$(docker ps --format "{{.Names}}" | grep -c "doh-upstream" || echo "0")
 
 if [ "$COREDNS_RUNNING" -eq 1 ]; then
     echo -e "${GREEN}✅ CoreDNS running${NC}"
@@ -575,12 +566,6 @@ if [ "$DOH_NGINX_RUNNING" -eq 1 ]; then
     echo -e "${GREEN}✅ DoH Nginx running${NC}"
 else
     echo -e "${RED}❌ DoH Nginx not running${NC}"
-fi
-
-if [ "$DOH_UPSTREAM_RUNNING" -eq 1 ]; then
-    echo -e "${GREEN}✅ DoH upstream running${NC}"
-else
-    echo -e "${RED}❌ DoH upstream not running${NC}"
 fi
 
 # Open firewall ports
