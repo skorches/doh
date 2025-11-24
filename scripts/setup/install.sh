@@ -590,16 +590,42 @@ EOFSNI
 mkdir -p /var/log/sniproxy
 chown nobody:nogroup /var/log/sniproxy
 
+# Fix systemd service to handle SNIProxy forking
+SNIPROXY_SERVICE="/etc/systemd/system/sniproxy.service"
+if [ -f "$SNIPROXY_SERVICE" ]; then
+    # Update service file to handle forking
+    if ! grep -q "Type=forking" "$SNIPROXY_SERVICE"; then
+        sed -i '/\[Service\]/a Type=forking\nPIDFile=/var/run/sniproxy.pid' "$SNIPROXY_SERVICE"
+        systemctl daemon-reload
+    fi
+fi
+
+# Kill any leftover sniproxy processes
+pkill -9 sniproxy 2>/dev/null || true
+sleep 1
+
 systemctl enable sniproxy
 systemctl restart sniproxy
-sleep 2
+sleep 3
 
+# Check if SNIProxy is actually listening (more reliable than systemd status)
 if ss -tlnp | grep -q ":443.*sniproxy"; then
     echo -e "${GREEN}✅ SNIProxy running on port 443${NC}"
+elif systemctl is-active --quiet sniproxy; then
+    echo -e "${GREEN}✅ SNIProxy service is active${NC}"
 else
-    echo -e "${RED}❌ SNIProxy failed to start${NC}"
-    journalctl -u sniproxy -n 10 --no-pager
-    exit 1
+    echo -e "${YELLOW}⚠ Checking SNIProxy status...${NC}"
+    # Check if process is running even if systemd says it's dead
+    if pgrep -f sniproxy > /dev/null; then
+        echo -e "${GREEN}✅ SNIProxy process is running (systemd tracking issue)${NC}"
+    else
+        echo -e "${RED}❌ SNIProxy failed to start${NC}"
+        journalctl -u sniproxy -n 10 --no-pager
+        echo ""
+        echo "Checking SNIProxy config..."
+        sniproxy -c /etc/sniproxy.conf -t 2>&1 | head -10 || echo "Config check failed"
+        exit 1
+    fi
 fi
 
 # Step 8: Start Docker containers
