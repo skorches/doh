@@ -137,7 +137,7 @@ echo -e "${GREEN}Detected VPS IP: $VPS_IP${NC}"
 
 # Ask for domain name
 echo ""
-read -p "Enter your domain name (e.g., bypass.440.info): " DOMAIN_NAME
+read -p "Enter your domain name (e.g., bypass.example.com): " DOMAIN_NAME
 if [ -z "$DOMAIN_NAME" ]; then
     echo -e "${RED}Domain name is required!${NC}"
     exit 1

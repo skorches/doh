@@ -59,7 +59,7 @@ fi
 echo ""
 echo -e "${YELLOW}[2/3] Checking DNS Configuration...${NC}"
 
-read -p "Enter your Cloudflare tunnel domain (e.g., xbox-live.440.info): " TUNNEL_DOMAIN
+read -p "Enter your Cloudflare tunnel domain (e.g., xbox-live.example.com): " TUNNEL_DOMAIN
 if [ -z "$TUNNEL_DOMAIN" ]; then
     echo -e "${RED}❌ Tunnel domain required${NC}"
     exit 1

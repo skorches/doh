@@ -175,7 +175,7 @@ echo -e "${YELLOW}[6/6] Testing Connection Through Tunnel...${NC}"
 TUNNEL_DOMAIN=$(grep -oP 'hostname:\s*\K[^\s]+' /etc/cloudflared/config.yml 2>/dev/null | head -1 || echo "")
 
 if [ -z "$TUNNEL_DOMAIN" ]; then
-    read -p "Enter your Cloudflare tunnel domain (e.g., xbox-proxy.440.info): " TUNNEL_DOMAIN
+    read -p "Enter your Cloudflare tunnel domain (e.g., xbox-proxy.example.com): " TUNNEL_DOMAIN
 fi
 
 if [ -n "$TUNNEL_DOMAIN" ]; then

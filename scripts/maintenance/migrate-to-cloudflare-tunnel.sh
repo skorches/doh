@@ -24,7 +24,7 @@ echo "domains resolve to Cloudflare Tunnel IPs instead"
 echo "of your VPS IP."
 echo ""
 
-read -p "Enter your Cloudflare tunnel subdomain (e.g., xbox-proxy.440.info): " TUNNEL_DOMAIN
+read -p "Enter your Cloudflare tunnel subdomain (e.g., xbox-proxy.example.com): " TUNNEL_DOMAIN
 if [ -z "$TUNNEL_DOMAIN" ]; then
     echo -e "${RED}❌ Tunnel domain is required${NC}"
     exit 1
