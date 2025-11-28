@@ -218,6 +218,9 @@ services:
       - ./coredns/Corefile:/etc/coredns/Corefile:ro
       - ./coredns/xbox-hosts:/etc/coredns/xbox-hosts:ro
     command: -conf /etc/coredns/Corefile
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
     restart: unless-stopped
     networks:
       - doh-network
