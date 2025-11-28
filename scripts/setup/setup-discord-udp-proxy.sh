@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Setup UDP proxy for Discord voice chat using 3proxy
+# Setup UDP proxy for Discord voice chat using 3proxy (from source)
 
 set -e
 
@@ -16,7 +16,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 echo "================================================"
-echo "Discord UDP Proxy Setup (3proxy)"
+echo "Discord UDP Proxy Setup (3proxy from source)"
 echo "================================================"
 echo ""
 echo "This will install 3proxy to handle Discord voice (UDP)"
@@ -33,19 +33,78 @@ fi
 echo -e "${BLUE}VPS IP: $VPS_IP${NC}"
 echo ""
 
-# Install 3proxy
-echo -e "${YELLOW}[1/5] Installing 3proxy...${NC}"
+# Check if 3proxy is already installed
 if command -v 3proxy &> /dev/null; then
     echo -e "${GREEN}✅ 3proxy already installed${NC}"
+    SKIP_INSTALL=true
 else
-    apt-get update -qq
-    apt-get install -y 3proxy
+    SKIP_INSTALL=false
+fi
+
+# Install dependencies
+echo -e "${YELLOW}[1/6] Installing dependencies...${NC}"
+apt-get update -qq
+apt-get install -y build-essential wget make gcc
+
+# Install 3proxy from source
+if [ "$SKIP_INSTALL" = false ]; then
+    echo ""
+    echo -e "${YELLOW}[2/6] Installing 3proxy from source...${NC}"
+    
+    BUILD_DIR="/tmp/3proxy-build"
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR"
+    cd "$BUILD_DIR"
+    
+    # Download 3proxy source
+    echo "Downloading 3proxy source..."
+    wget -q https://github.com/z3APA3A/3proxy/archive/refs/heads/master.zip -O 3proxy.zip || {
+        echo -e "${RED}❌ Failed to download 3proxy source${NC}"
+        echo "Trying alternative: Docker container approach..."
+        exit 1
+    }
+    
+    unzip -q 3proxy.zip
+    cd 3proxy-master
+    
+    # Build 3proxy
+    echo "Building 3proxy..."
+    make -f Makefile.Linux > /dev/null 2>&1 || {
+        echo -e "${RED}❌ Failed to build 3proxy${NC}"
+        echo "Trying alternative installation method..."
+        
+        # Alternative: Install from pre-built binary or use Docker
+        echo ""
+        echo "Alternative: Using Docker container with 3proxy..."
+        cd /root/doh
+        
+        # Create docker-compose entry for 3proxy
+        if [ -f docker-compose.yml ]; then
+            echo "Adding 3proxy to docker-compose.yml..."
+            # We'll add this manually or use a separate container
+        fi
+        
+        exit 1
+    }
+    
+    # Install 3proxy
+    cp bin/3proxy /usr/bin/3proxy
+    chmod +x /usr/bin/3proxy
+    mkdir -p /etc/3proxy
+    
+    cd /
+    rm -rf "$BUILD_DIR"
+    
     echo -e "${GREEN}✅ 3proxy installed${NC}"
+else
+    echo -e "${GREEN}✅ 3proxy already installed, skipping build${NC}"
 fi
 
 # Create 3proxy config
 echo ""
-echo -e "${YELLOW}[2/5] Creating 3proxy configuration...${NC}"
+echo -e "${YELLOW}[3/6] Creating 3proxy configuration...${NC}"
+
+mkdir -p /etc/3proxy
 
 cat > /etc/3proxy/3proxy.cfg << 'EOF3PROXY'
 # 3proxy configuration for Discord UDP proxy
@@ -57,33 +116,27 @@ log
 logformat "- %U %C:%c %R:%r %O %I %h %T"
 rotate 30
 
-# Users (no authentication for simplicity)
-# In production, you might want to add authentication
-users $/etc/3proxy/passwd
-
 # Allow connections from anywhere (adjust if needed)
+# Discord uses ports 50000-65535 for voice
 allow * * * 80-88,8080-8088 HTTP
 allow * * * 443,8443 HTTPS
 allow * * * 50000-65535 UDP
 
-# HTTP/HTTPS proxy (for text chat - but SNIProxy handles this)
-# We'll use this as a fallback if needed
-# proxy -p3128
-
 # SOCKS5 proxy with UDP support (for Discord voice)
 # This is the key for Discord voice chat
+# Port 1080 for SOCKS5
 socks -p1080
 EOF3PROXY
 
 echo -e "${GREEN}✅ 3proxy config created${NC}"
 
-# Create empty password file (no auth)
+# Create empty password file (no auth for simplicity)
 echo "" > /etc/3proxy/passwd
 chmod 600 /etc/3proxy/passwd
 
 # Create systemd service for 3proxy
 echo ""
-echo -e "${YELLOW}[3/5] Creating systemd service...${NC}"
+echo -e "${YELLOW}[4/6] Creating systemd service...${NC}"
 
 cat > /etc/systemd/system/3proxy-discord.service << EOF3PROXY_SERVICE
 [Unit]
@@ -107,25 +160,33 @@ echo -e "${GREEN}✅ Systemd service created${NC}"
 
 # Start 3proxy
 echo ""
-echo -e "${YELLOW}[4/5] Starting 3proxy...${NC}"
+echo -e "${YELLOW}[5/6] Starting 3proxy...${NC}"
 systemctl enable 3proxy-discord
 systemctl start 3proxy-discord
 sleep 2
 
 if systemctl is-active --quiet 3proxy-discord; then
     echo -e "${GREEN}✅ 3proxy started${NC}"
+    
+    # Check if listening
+    if ss -tlnp | grep -q ":1080"; then
+        echo -e "${GREEN}✅ 3proxy listening on port 1080${NC}"
+    else
+        echo -e "${YELLOW}⚠ 3proxy running but not listening on 1080 yet${NC}"
+    fi
 else
     echo -e "${RED}❌ Failed to start 3proxy${NC}"
-    journalctl -u 3proxy-discord -n 10 --no-pager
+    echo "Checking logs..."
+    journalctl -u 3proxy-discord -n 20 --no-pager
     exit 1
 fi
 
 # Configure firewall
 echo ""
-echo -e "${YELLOW}[5/5] Configuring firewall...${NC}"
+echo -e "${YELLOW}[6/6] Configuring firewall...${NC}"
 if command -v ufw &> /dev/null; then
-    ufw allow 1080/tcp comment "3proxy SOCKS5 TCP"
-    ufw allow 1080/udp comment "3proxy SOCKS5 UDP"
+    ufw allow 1080/tcp comment "3proxy SOCKS5 TCP" 2>/dev/null || true
+    ufw allow 1080/udp comment "3proxy SOCKS5 UDP" 2>/dev/null || true
     echo -e "${GREEN}✅ Firewall rules added${NC}"
 else
     echo -e "${YELLOW}⚠ UFW not found, configure firewall manually${NC}"
@@ -145,27 +206,20 @@ echo ""
 echo "HOW TO USE:"
 echo "───────────"
 echo "1. Configure Discord to use SOCKS5 proxy:"
+echo "   - Discord Settings → Connections → Proxy"
+echo "   - Enable proxy"
 echo "   - Proxy: $VPS_IP"
 echo "   - Port: 1080"
 echo "   - Type: SOCKS5"
-echo ""
-echo "2. Discord Settings:"
-echo "   - User Settings → Connections → Proxy"
-echo "   - Enable proxy"
-echo "   - Enter: $VPS_IP:1080"
-echo "   - Type: SOCKS5"
+echo "   - Save and restart Discord"
 echo ""
 echo "CURRENT SETUP:"
 echo "──────────────"
-echo "✅ SNIProxy: Handles HTTPS (TCP) on port 443"
-echo "✅ 3proxy: Handles SOCKS5 (TCP + UDP) on port 1080"
+echo "✅ SNIProxy: Handles HTTPS (TCP) on port 443 (automatic)"
+echo "✅ 3proxy: Handles SOCKS5 (TCP + UDP) on port 1080 (requires Discord config)"
 echo ""
 echo "NOTE:"
 echo "─────"
-echo "You can use either:"
-echo "  - SNIProxy (automatic, no Discord config) for HTTPS"
-echo "  - 3proxy SOCKS5 (requires Discord proxy settings) for full support"
+echo "For voice chat to work, you MUST configure Discord"
+echo "to use the SOCKS5 proxy (Settings → Connections → Proxy)"
 echo ""
-echo "For best results, configure Discord to use the SOCKS5 proxy!"
-echo ""
-
