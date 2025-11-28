@@ -139,6 +139,7 @@ nslookup xboxlive.com
 ```
 doh/
 ├── README.md                    # This file
+├── SCRIPTS_REFERENCE.md         # Complete scripts documentation
 ├── docker-compose.yml           # Docker services (generated)
 ├── coredns/
 │   ├── Corefile                 # CoreDNS config (generated)
@@ -146,9 +147,22 @@ doh/
 ├── nginx/
 │   └── conf.d/                 # Nginx config (generated)
 ├── ssl/                         # SSL certificates (generated)
+├── docs/                        # Additional documentation
 └── scripts/
     ├── setup/
     │   ├── install.sh           # Main installer
+    │   ├── setup-letsencrypt.sh # Let's Encrypt certificate
+    │   ├── setup-cloudflare-tunnel.sh # Cloudflare Tunnel setup
+    │   └── setup-discord-udp-proxy.sh # Discord UDP proxy (3proxy)
+    └── maintenance/
+        ├── fix-discord.sh       # Discord connectivity fix
+        ├── fix-coredns.sh       # CoreDNS fix
+        ├── fix-sniproxy.sh      # SNIProxy fix
+        ├── fix-xbox-connectivity.sh # Xbox troubleshooting
+        ├── monitor-logs.sh      # Log monitoring
+        ├── regenerate-hosts.sh  # Regenerate hosts file
+        ├── add-game-domain.sh   # Add game domains
+        └── [other maintenance scripts]
     │   ├── setup-letsencrypt.sh # SSL certificate setup
     │   └── setup-cloudflare-tunnel.sh  # Optional: Cloudflare Tunnel
     └── maintenance/
@@ -261,9 +275,18 @@ This routes traffic through Cloudflare's network, hiding your VPS IP from Xbox s
 
 All maintenance scripts are in `scripts/maintenance/`:
 
+**Main Fix Scripts:**
+- **`fix-discord.sh`** - Comprehensive Discord connectivity fix
+- **`fix-coredns.sh`** - CoreDNS fix (ports, conflicts, connection)
+- **`fix-sniproxy.sh`** - SNIProxy fix (systemd, ports, timeouts)
+- **`fix-xbox-connectivity.sh`** - Xbox troubleshooting
+
+**Utility Scripts:**
+- **`monitor-logs.sh`** - Real-time log monitoring (interactive menu)
+- **`regenerate-hosts.sh`** - Regenerate hosts file with all domains
 - **`add-game-domain.sh`** - Add individual game domains
-- **`fix-xbox-connectivity.sh`** - Comprehensive troubleshooting
-- **`fix-coredns-connection.sh`** - Fix CoreDNS connection issues
+
+**See `SCRIPTS_REFERENCE.md` for complete documentation.**
 - **`fix-sniproxy-systemd.sh`** - Fix SNIProxy systemd issues
 - **`fix-port-443.sh`** - Fix port 443 conflicts
 

@@ -44,7 +44,7 @@ fi
 # Install dependencies
 echo -e "${YELLOW}[1/6] Installing dependencies...${NC}"
 apt-get update -qq
-apt-get install -y build-essential wget make gcc
+apt-get install -y build-essential wget make gcc unzip
 
 # Install 3proxy from source
 if [ "$SKIP_INSTALL" = false ]; then
@@ -116,15 +116,17 @@ log
 logformat "- %U %C:%c %R:%r %O %I %h %T"
 rotate 30
 
-# Allow connections from anywhere (adjust if needed)
-# Discord uses ports 50000-65535 for voice
+# Allow connections from anywhere
+# Note: 3proxy's allow syntax doesn't specify UDP/TCP in the allow line
+# UDP support is enabled by default in SOCKS5
 allow * * * 80-88,8080-8088 HTTP
 allow * * * 443,8443 HTTPS
-allow * * * 50000-65535 UDP
+allow * * * 50000-65535
 
 # SOCKS5 proxy with UDP support (for Discord voice)
 # This is the key for Discord voice chat
 # Port 1080 for SOCKS5
+# UDP is automatically supported in SOCKS5
 socks -p1080
 EOF3PROXY
 
