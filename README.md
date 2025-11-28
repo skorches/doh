@@ -287,8 +287,6 @@ All maintenance scripts are in `scripts/maintenance/`:
 - **`add-game-domain.sh`** - Add individual game domains
 
 **See `SCRIPTS_REFERENCE.md` for complete documentation.**
-- **`fix-sniproxy-systemd.sh`** - Fix SNIProxy systemd issues
-- **`fix-port-443.sh`** - Fix port 443 conflicts
 
 ## Uninstalling
 

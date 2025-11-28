@@ -58,7 +58,7 @@ All Traffic → Port 1080 → 3proxy → Real Discord Servers ✅
 - Voice won't work
 
 ### For Text + Voice Chat
-1. Run: `./scripts/setup/setup-discord-docker.sh`
+1. Run: `./scripts/setup/setup-discord-udp-proxy.sh`
 2. Configure Discord:
    - Settings → Connections → Proxy
    - Enable proxy
