@@ -193,6 +193,8 @@ echo -e "${GREEN}✅ Nginx optimized (HTTP/2, keep-alive, reduced timeouts)${NC}
 echo ""
 echo -e "${YELLOW}[3/5] Optimizing DoH backend timeout...${NC}"
 
+DOCKER_COMPOSE_MODIFIED=0
+
 # Check which docker-compose setup is being used
 if grep -q "doh-backend" docker-compose.yml 2>/dev/null; then
     # New setup (doh-nginx, doh-backend, coredns-smartdns)
@@ -203,18 +205,21 @@ if grep -q "doh-backend" docker-compose.yml 2>/dev/null; then
         # Update timeout from 10s to 3s and retries from 3 to 1
         sed -i 's/DOH_SERVER_TIMEOUT=10/DOH_SERVER_TIMEOUT=3/g' docker-compose.yml
         sed -i 's/DOH_SERVER_TRIES=3/DOH_SERVER_TRIES=1/g' docker-compose.yml
-        
+        DOCKER_COMPOSE_MODIFIED=1
         echo -e "${GREEN}✅ DoH backend timeout reduced (10s → 3s, retries 3 → 1)${NC}"
     else
         echo -e "${YELLOW}⚠ DoH backend timeout already optimized or not found${NC}"
     fi
 elif grep -q "doh-proxy" docker-compose.yml 2>/dev/null; then
-    # Old setup (doh-proxy)
+    # Setup with doh-proxy (satishweb/doh-server)
     if grep -q "DOH_SERVER_TIMEOUT=10" docker-compose.yml; then
         cp docker-compose.yml docker-compose.yml.backup.$(date +%Y%m%d_%H%M%S)
         sed -i 's/DOH_SERVER_TIMEOUT=10/DOH_SERVER_TIMEOUT=3/g' docker-compose.yml
         sed -i 's/DOH_SERVER_TRIES=3/DOH_SERVER_TRIES=1/g' docker-compose.yml
-        echo -e "${GREEN}✅ DoH proxy timeout reduced${NC}"
+        DOCKER_COMPOSE_MODIFIED=1
+        echo -e "${GREEN}✅ DoH proxy timeout reduced (10s → 3s, retries 3 → 1)${NC}"
+    else
+        echo -e "${YELLOW}⚠ DoH proxy timeout already optimized or not found${NC}"
     fi
 else
     echo -e "${YELLOW}⚠ Could not find doh-backend or doh-proxy in docker-compose.yml${NC}"
@@ -231,20 +236,31 @@ if docker ps | grep -q "coredns-smartdns\|dns-proxy"; then
     echo -e "${GREEN}✅ CoreDNS restarted${NC}"
 fi
 
-# Restart Nginx
+# Restart Nginx (if it exists)
 if docker ps | grep -q "doh-nginx"; then
     echo "Restarting Nginx..."
-    docker compose restart doh-nginx
+    docker compose restart doh-nginx 2>/dev/null || true
     sleep 2
     echo -e "${GREEN}✅ Nginx restarted${NC}"
+else
+    echo -e "${YELLOW}⚠ Nginx not found (skipping - this setup may use cloudflared directly)${NC}"
 fi
 
-# Restart DoH backend
+# Restart DoH backend (recreate if docker-compose.yml was modified to apply new env vars)
 if docker ps | grep -q "doh-backend\|doh-proxy"; then
-    echo "Restarting DoH backend..."
-    docker compose restart doh-backend 2>/dev/null || docker compose restart doh-proxy 2>/dev/null || true
-    sleep 2
-    echo -e "${GREEN}✅ DoH backend restarted${NC}"
+    if [ "$DOCKER_COMPOSE_MODIFIED" -eq 1 ]; then
+        # docker-compose.yml was modified, need to recreate to apply new env vars
+        echo "Recreating DoH backend to apply new timeout settings..."
+        docker compose up -d --force-recreate doh-backend 2>/dev/null || docker compose up -d --force-recreate doh-proxy 2>/dev/null || true
+        sleep 3
+        echo -e "${GREEN}✅ DoH backend recreated with new settings${NC}"
+    else
+        # No changes, just restart
+        echo "Restarting DoH backend..."
+        docker compose restart doh-backend 2>/dev/null || docker compose restart doh-proxy 2>/dev/null || true
+        sleep 2
+        echo -e "${GREEN}✅ DoH backend restarted${NC}"
+    fi
 fi
 
 echo ""
@@ -260,13 +276,20 @@ if docker ps | grep -q "coredns-smartdns\|dns-proxy"; then
     fi
 fi
 
-# Test DoH endpoint
+# Test DoH endpoint (if Nginx exists, otherwise test doh-proxy directly)
 if docker ps | grep -q "doh-nginx"; then
-    echo "Testing DoH endpoint..."
+    echo "Testing DoH endpoint via Nginx..."
     if timeout 5 curl -k -s -H 'accept: application/dns-json' "https://${DOMAIN_NAME}/dns-query?name=google.com&type=A" > /dev/null 2>&1; then
         echo -e "${GREEN}✅ DoH endpoint responding${NC}"
     else
         echo -e "${YELLOW}⚠ DoH endpoint test failed (check if domain is accessible)${NC}"
+    fi
+elif docker ps | grep -q "doh-proxy"; then
+    echo "Testing DoH endpoint via doh-proxy..."
+    if timeout 5 curl -k -s -H 'accept: application/dns-json' "http://localhost:8053/dns-query?name=google.com&type=A" > /dev/null 2>&1; then
+        echo -e "${GREEN}✅ DoH proxy responding${NC}"
+    else
+        echo -e "${YELLOW}⚠ DoH proxy test failed${NC}"
     fi
 fi
 
