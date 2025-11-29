@@ -197,7 +197,7 @@ DOCKER_COMPOSE_MODIFIED=0
 
 # Check which docker-compose setup is being used
 if grep -q "doh-backend" docker-compose.yml 2>/dev/null; then
-    # New setup (doh-nginx, doh-backend, coredns-smartdns)
+    # Setup from install.sh (doh-nginx, doh-backend, coredns-smartdns)
     if grep -q "DOH_SERVER_TIMEOUT=10" docker-compose.yml; then
         # Backup docker-compose.yml
         cp docker-compose.yml docker-compose.yml.backup.$(date +%Y%m%d_%H%M%S)
@@ -207,8 +207,10 @@ if grep -q "doh-backend" docker-compose.yml 2>/dev/null; then
         sed -i 's/DOH_SERVER_TRIES=3/DOH_SERVER_TRIES=1/g' docker-compose.yml
         DOCKER_COMPOSE_MODIFIED=1
         echo -e "${GREEN}✅ DoH backend timeout reduced (10s → 3s, retries 3 → 1)${NC}"
+    elif grep -q "DOH_SERVER_TIMEOUT=3" docker-compose.yml; then
+        echo -e "${YELLOW}⚠ DoH backend timeout already optimized${NC}"
     else
-        echo -e "${YELLOW}⚠ DoH backend timeout already optimized or not found${NC}"
+        echo -e "${YELLOW}⚠ DoH backend timeout setting not found in docker-compose.yml${NC}"
     fi
 elif grep -q "doh-proxy" docker-compose.yml 2>/dev/null; then
     # Setup with doh-proxy (satishweb/doh-server)
