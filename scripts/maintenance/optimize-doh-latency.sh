@@ -33,6 +33,16 @@ fi
 
 echo -e "${YELLOW}[1/5] Optimizing CoreDNS configuration...${NC}"
 
+# Create coredns directory if it doesn't exist
+mkdir -p coredns
+
+# Create empty xbox-hosts if it doesn't exist (CoreDNS needs it)
+if [ ! -f "coredns/xbox-hosts" ]; then
+    touch coredns/xbox-hosts
+    echo "# Xbox and game domain mappings" > coredns/xbox-hosts
+    echo "✅ Created empty xbox-hosts file"
+fi
+
 # Backup existing Corefile
 if [ -f "coredns/Corefile" ]; then
     cp coredns/Corefile coredns/Corefile.backup.$(date +%Y%m%d_%H%M%S)
