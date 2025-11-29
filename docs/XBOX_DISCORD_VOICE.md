@@ -73,3 +73,4 @@ Xbox doesn't have Discord proxy settings. Discord voice chat on Xbox uses **UDP*
 | Xbox Live | ✅ Works | SNIProxy |
 | Game services | ✅ Works | SNIProxy |
 
+

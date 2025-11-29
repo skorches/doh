@@ -238,3 +238,4 @@ echo "2. Restart your router to clear DNS cache"
 echo "3. Test Discord and Activision games"
 echo ""
 
+
