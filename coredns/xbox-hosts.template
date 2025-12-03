@@ -1,0 +1,9 @@
+# Essential Xbox Smart DNS Hosts
+# This is a template file. Run ./scripts/maintenance/regenerate-hosts.sh to generate the actual hosts file.
+# The script will auto-detect your VPS IP and populate this file.
+
+# After running regenerate-hosts.sh, this file will contain entries like:
+# YOUR_VPS_IP xboxlive.com
+# YOUR_VPS_IP www.xboxlive.com
+# etc.
+

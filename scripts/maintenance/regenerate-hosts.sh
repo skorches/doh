@@ -39,11 +39,15 @@ fi
 echo -e "${BLUE}Using directory: $DOH_DIR${NC}"
 cd "$DOH_DIR"
 
-# Get VPS IP
-VPS_IP=$(curl -s ifconfig.me || curl -s icanhazip.com || curl -s ipinfo.io/ip || echo "")
+# Get VPS IP (IPv4 only)
+VPS_IP=$(curl -4 -s ifconfig.me || curl -4 -s icanhazip.com || curl -4 -s ipinfo.io/ip || echo "")
 if [ -z "$VPS_IP" ]; then
     echo -e "${YELLOW}Could not auto-detect VPS IP${NC}"
-    read -p "Enter your VPS IP: " VPS_IP
+    read -p "Enter your VPS IP (IPv4): " VPS_IP
+    if [ -z "$VPS_IP" ]; then
+        echo -e "${RED}❌ VPS IP is required${NC}"
+        exit 1
+    fi
 fi
 
 echo -e "${BLUE}VPS IP: $VPS_IP${NC}"

@@ -23,8 +23,8 @@ echo "This will install 3proxy to handle Discord voice (UDP)"
 echo "SNIProxy will continue handling HTTPS (TCP) for text chat"
 echo ""
 
-# Get VPS IP
-VPS_IP=$(curl -s ifconfig.me || curl -s icanhazip.com || curl -s ipinfo.io/ip || echo "")
+# Get VPS IP (IPv4 only)
+VPS_IP=$(curl -4 -s ifconfig.me || curl -4 -s icanhazip.com || curl -4 -s ipinfo.io/ip || echo "")
 if [ -z "$VPS_IP" ]; then
     echo -e "${YELLOW}Could not auto-detect VPS IP${NC}"
     read -p "Enter your VPS IP: " VPS_IP
