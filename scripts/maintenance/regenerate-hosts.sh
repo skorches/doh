@@ -136,6 +136,10 @@ $VPS_IP profile.activision.com
 $VPS_IP accounts.callofduty.com
 $VPS_IP atvi.com
 $VPS_IP www.atvi.com
+# Warzone game servers (Demonware - matchmaking/auth)
+$VPS_IP demonware.net
+$VPS_IP prod.demonware.net
+$VPS_IP demonware.com
 
 # === ELECTRONIC ARTS (Battlefield, FIFA, etc.) ===
 $VPS_IP ea.com

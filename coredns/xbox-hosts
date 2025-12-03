@@ -136,3 +136,7 @@
 91.235.234.92 www.cdprojekt.com
 91.235.234.92 gog.com
 91.235.234.92 www.gog.com
+
+# Microsoft licensing and network check domains
+91.235.234.92 licensing.mp.microsoft.com
+91.235.234.92 ipv6.msftncsi.com
