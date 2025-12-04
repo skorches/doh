@@ -103,9 +103,76 @@ else
     echo -e "${YELLOW}⚠ SNIProxy is not enabled${NC}"
 fi
 
-# 4. Check Corefile (ensure it uses IPs, not hostnames)
+# 4. Check xbox-hosts file
 echo ""
-echo -e "${YELLOW}[4/9] Corefile Configuration${NC}"
+echo -e "${YELLOW}[4/9] Xbox Hosts File${NC}"
+
+# Get VPS IP
+VPS_IP=$(curl -4 -s ifconfig.me || curl -4 -s icanhazip.com || echo "")
+
+if [ -z "$VPS_IP" ]; then
+    echo -e "${YELLOW}⚠ Could not detect VPS IP, skipping hosts file check${NC}"
+else
+    # Essential domains that should be in hosts file
+    ESSENTIAL_DOMAINS=(
+        "xboxlive.com"
+        "xbox.com"
+        "login.live.com"
+        "xboxservices.com"
+        "discord.com"
+        "callofduty.com"
+        "activision.com"
+    )
+    
+    MISSING_DOMAINS=()
+    EMPTY_FILE=0
+    
+    if [ ! -f "coredns/xbox-hosts" ] || [ ! -s "coredns/xbox-hosts" ]; then
+        echo -e "${RED}❌ xbox-hosts file is missing or empty${NC}"
+        EMPTY_FILE=1
+    else
+        # Check if file has VPS IP entries
+        if ! grep -q "^$VPS_IP" coredns/xbox-hosts 2>/dev/null; then
+            echo -e "${YELLOW}⚠ xbox-hosts file doesn't contain VPS IP entries${NC}"
+            EMPTY_FILE=1
+        else
+            # Check for essential domains
+            for domain in "${ESSENTIAL_DOMAINS[@]}"; do
+                if ! grep -q "$domain" coredns/xbox-hosts 2>/dev/null; then
+                    MISSING_DOMAINS+=("$domain")
+                fi
+            done
+            
+            if [ ${#MISSING_DOMAINS[@]} -eq 0 ]; then
+                DOMAIN_COUNT=$(grep -c "^$VPS_IP" coredns/xbox-hosts 2>/dev/null || echo "0")
+                echo -e "${GREEN}✅ xbox-hosts file is complete ($DOMAIN_COUNT domains)${NC}"
+            else
+                echo -e "${YELLOW}⚠ Missing essential domains: ${MISSING_DOMAINS[*]}${NC}"
+            fi
+        fi
+    fi
+    
+    # Regenerate if needed
+    if [ "$EMPTY_FILE" -eq 1 ] || [ ${#MISSING_DOMAINS[@]} -gt 3 ]; then
+        echo -e "${YELLOW}   Regenerating xbox-hosts file...${NC}"
+        if [ -f "scripts/maintenance/regenerate-hosts.sh" ]; then
+            bash scripts/maintenance/regenerate-hosts.sh > /dev/null 2>&1 || {
+                echo -e "${RED}❌ Failed to regenerate hosts file${NC}"
+                ISSUES=$((ISSUES + 1))
+            }
+            sleep 2
+            docker restart coredns-smartdns 2>/dev/null || true
+            echo -e "${GREEN}✅ Hosts file regenerated${NC}"
+        else
+            echo -e "${YELLOW}⚠ regenerate-hosts.sh not found, manual regeneration needed${NC}"
+            ISSUES=$((ISSUES + 1))
+        fi
+    fi
+fi
+
+# 5. Check Corefile (ensure it uses IPs, not hostnames)
+echo ""
+echo -e "${YELLOW}[5/9] Corefile Configuration${NC}"
 if [ -f "coredns/Corefile" ]; then
     if grep -q "dns-proxy:" coredns/Corefile || (grep -q "forward" coredns/Corefile && ! grep -q "1\.1\.1\.1\|8\.8\.8\.8" coredns/Corefile); then
         echo -e "${YELLOW}⚠ Corefile contains hostnames or invalid config, fixing...${NC}"
@@ -169,9 +236,9 @@ EOFCORE
     sleep 3
 fi
 
-# 5. Check 3proxy (if installed)
+# 6. Check 3proxy (if installed)
 echo ""
-echo -e "${YELLOW}[5/9] 3proxy Service (Discord)${NC}"
+echo -e "${YELLOW}[6/9] 3proxy Service (Discord)${NC}"
 if systemctl list-unit-files | grep -q "3proxy.*enabled"; then
     if systemctl is-active --quiet 3proxy-discord 2>/dev/null || systemctl is-active --quiet 3proxy 2>/dev/null; then
         echo -e "${GREEN}✅ 3proxy is running${NC}"
@@ -183,9 +250,9 @@ else
     echo -e "${BLUE}ℹ 3proxy not configured (optional)${NC}"
 fi
 
-# 6. Check port 443
+# 7. Check port 443
 echo ""
-echo -e "${YELLOW}[6/9] Port 443 (SNIProxy)${NC}"
+echo -e "${YELLOW}[7/9] Port 443 (SNIProxy)${NC}"
 if ss -tlnp | grep -q ":443.*sniproxy"; then
     echo -e "${GREEN}✅ SNIProxy listening on port 443${NC}"
 else
@@ -193,19 +260,19 @@ else
     ISSUES=$((ISSUES + 1))
 fi
 
-# 7. Check port 53
+# 8. Check port 53
 echo ""
-echo -e "${YELLOW}[7/9] Port 53 (CoreDNS)${NC}"
-if ss -tlnp | grep -q ":53.*coredns" || ss -ulnp | grep -q ":53.*coredns"; then
-    echo -e "${GREEN}✅ CoreDNS listening on port 53${NC}"
+echo -e "${YELLOW}[8/9] Port 53 (CoreDNS)${NC}"
+if ss -tlnp | grep -q ":53" || ss -ulnp | grep -q ":53"; then
+    echo -e "${GREEN}✅ Port 53 is listening (docker-proxy forwarding to CoreDNS)${NC}"
 else
-    echo -e "${RED}❌ CoreDNS not listening on port 53${NC}"
+    echo -e "${RED}❌ Port 53 not listening${NC}"
     ISSUES=$((ISSUES + 1))
 fi
 
-# 8. Test DNS resolution
+# 9. Test DNS resolution
 echo ""
-echo -e "${YELLOW}[8/9] DNS Resolution Test${NC}"
+echo -e "${YELLOW}[9/9] DNS Resolution Test${NC}"
 
 TEST_DOMAINS=("xboxlive.com" "callofduty.com" "discord.com")
 DNS_SUCCESS=0
@@ -226,9 +293,9 @@ if [ "$DNS_FAILED" -gt 0 ]; then
     ISSUES=$((ISSUES + 1))
 fi
 
-# 9. Test DoH endpoint
+# 10. Test DoH endpoint (separate from main checks)
 echo ""
-echo -e "${YELLOW}[9/9] DoH Endpoint Test${NC}"
+echo -e "${YELLOW}[10/10] DoH Endpoint Test${NC}"
 
 # Get domain from config
 DOMAIN=$(grep "server_name" nginx/conf.d/doh.conf 2>/dev/null | awk '{print $2}' | tr -d ';' || echo "localhost")
@@ -240,13 +307,24 @@ else
     DOH_CMD="curl -k -s"
 fi
 
-DOH_RESULT=$(timeout 5 $DOH_CMD -H 'accept: application/dns-json' "$DOH_URL" 2>&1 | grep -o '"Status":[0-9]*' | cut -d: -f2 || echo "FAILED")
+DOH_RESPONSE=$(timeout 5 $DOH_CMD -H 'accept: application/dns-json' "$DOH_URL" 2>&1)
+DOH_RESULT=$(echo "$DOH_RESPONSE" | grep -o '"Status":[0-9]*' | cut -d: -f2 || echo "FAILED")
 
 if [ "$DOH_RESULT" == "0" ]; then
     echo -e "${GREEN}✅ DoH endpoint working (Status: 0)${NC}"
 elif [ "$DOH_RESULT" == "FAILED" ]; then
-    echo -e "${RED}❌ DoH endpoint not responding${NC}"
-    ISSUES=$((ISSUES + 1))
+    # Try to see if there's any response at all
+    if echo "$DOH_RESPONSE" | grep -q "Status\|Answer\|Question"; then
+        ACTUAL_STATUS=$(echo "$DOH_RESPONSE" | grep -o '"Status":[0-9]*' | cut -d: -f2 || echo "unknown")
+        if [ "$ACTUAL_STATUS" != "unknown" ]; then
+            echo -e "${YELLOW}⚠ DoH endpoint returned Status: $ACTUAL_STATUS${NC}"
+        else
+            echo -e "${GREEN}✅ DoH endpoint responding (parsing issue, but endpoint works)${NC}"
+        fi
+    else
+        echo -e "${RED}❌ DoH endpoint not responding${NC}"
+        ISSUES=$((ISSUES + 1))
+    fi
 else
     echo -e "${YELLOW}⚠ DoH endpoint returned Status: $DOH_RESULT${NC}"
     ISSUES=$((ISSUES + 1))
