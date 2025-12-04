@@ -192,6 +192,7 @@ services:
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./ssl:/etc/nginx/ssl:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - doh-backend
     restart: unless-stopped
@@ -415,6 +416,15 @@ echo -e "${YELLOW}[5/8] Creating Nginx configuration...${NC}"
 
 mkdir -p nginx/conf.d
 
+# Determine SSL certificate paths
+if [ -f /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem ]; then
+    SSL_CERT="/etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem"
+    SSL_KEY="/etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem"
+else
+    SSL_CERT="/etc/nginx/ssl/selfsigned.crt"
+    SSL_KEY="/etc/nginx/ssl/selfsigned.key"
+fi
+
 cat > nginx/conf.d/doh.conf << EOFNGINX
 server {
     listen 443 ssl;
@@ -422,8 +432,8 @@ server {
     
     server_name $DOMAIN_NAME;
     
-    ssl_certificate /etc/nginx/ssl/selfsigned.crt;
-    ssl_certificate_key /etc/nginx/ssl/selfsigned.key;
+    ssl_certificate $SSL_CERT;
+    ssl_certificate_key $SSL_KEY;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
     
@@ -458,22 +468,68 @@ echo ""
 echo -e "${YELLOW}[6/8] Setting up SSL certificates...${NC}"
 
 if [ -f /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem ]; then
-    echo "Using Let's Encrypt certificate"
+    echo "Using existing Let's Encrypt certificate"
     cp /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem ssl/selfsigned.crt
     cp /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem ssl/selfsigned.key
     chmod 644 ssl/selfsigned.crt
     chmod 600 ssl/selfsigned.key
     echo -e "${GREEN}✅ Let's Encrypt certificate copied${NC}"
 else
-    echo "Creating self-signed certificate"
-    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-        -keyout ssl/selfsigned.key \
-        -out ssl/selfsigned.crt \
-        -subj "/CN=$DOMAIN_NAME" 2>/dev/null
-    chmod 644 ssl/selfsigned.crt
-    chmod 600 ssl/selfsigned.key
-    echo -e "${GREEN}✅ Self-signed certificate created${NC}"
-    echo -e "${YELLOW}⚠ Note: For production, get Let's Encrypt certificate${NC}"
+    echo ""
+    echo "SSL Certificate Options:"
+    echo "  1. Let's Encrypt (recommended - free, trusted)"
+    echo "  2. Self-signed (quick setup, browser warnings)"
+    echo ""
+    read -p "Choose option (1 or 2, default: 2): " SSL_CHOICE
+    SSL_CHOICE=${SSL_CHOICE:-2}
+    
+    if [ "$SSL_CHOICE" == "1" ]; then
+        echo ""
+        echo "Let's Encrypt Requirements:"
+        echo "  - Domain DNS A record must point to this VPS ($VPS_IP)"
+        echo "  - Port 80 must be open"
+        echo ""
+        read -p "Enter your email for Let's Encrypt: " EMAIL
+        if [ -z "$EMAIL" ]; then
+            echo -e "${YELLOW}No email provided, using self-signed instead${NC}"
+            SSL_CHOICE=2
+        else
+            # Install certbot if needed
+            if ! command -v certbot &> /dev/null; then
+                echo -e "${YELLOW}Installing certbot...${NC}"
+                apt-get update -qq
+                apt-get install -y certbot
+            fi
+            
+            # Stop nginx temporarily
+            $DOCKER_COMPOSE_CMD stop doh-nginx 2>/dev/null || true
+            systemctl stop nginx 2>/dev/null || true
+            
+            # Get certificate
+            echo -e "${YELLOW}Getting Let's Encrypt certificate...${NC}"
+            if certbot certonly --standalone -d "$DOMAIN_NAME" --non-interactive --agree-tos --email "$EMAIL" 2>/dev/null; then
+                cp /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem ssl/selfsigned.crt
+                cp /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem ssl/selfsigned.key
+                chmod 644 ssl/selfsigned.crt
+                chmod 600 ssl/selfsigned.key
+                echo -e "${GREEN}✅ Let's Encrypt certificate obtained!${NC}"
+            else
+                echo -e "${YELLOW}⚠ Failed to get Let's Encrypt certificate, using self-signed${NC}"
+                SSL_CHOICE=2
+            fi
+        fi
+    fi
+    
+    if [ "$SSL_CHOICE" == "2" ]; then
+        echo "Creating self-signed certificate"
+        openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+            -keyout ssl/selfsigned.key \
+            -out ssl/selfsigned.crt \
+            -subj "/CN=$DOMAIN_NAME" 2>/dev/null
+        chmod 644 ssl/selfsigned.crt
+        chmod 600 ssl/selfsigned.key
+        echo -e "${GREEN}✅ Self-signed certificate created${NC}"
+    fi
 fi
 
 # Step 7: Install and configure SNIProxy
@@ -597,40 +653,67 @@ mkdir -p /var/log/sniproxy
 chown nobody:nogroup /var/log/sniproxy
 
 # Fix systemd service to handle SNIProxy forking
-SNIPROXY_SERVICE="/etc/systemd/system/sniproxy.service"
+SNIPROXY_SERVICE="/lib/systemd/system/sniproxy.service"
+if [ ! -f "$SNIPROXY_SERVICE" ]; then
+    SNIPROXY_SERVICE="/etc/systemd/system/sniproxy.service"
+fi
+
 if [ -f "$SNIPROXY_SERVICE" ]; then
-    # Update service file to handle forking
-    if ! grep -q "Type=forking" "$SNIPROXY_SERVICE"; then
-        sed -i '/\[Service\]/a Type=forking\nPIDFile=/var/run/sniproxy.pid' "$SNIPROXY_SERVICE"
-        systemctl daemon-reload
-    fi
+    # Create override directory
+    mkdir -p /etc/systemd/system/sniproxy.service.d/
+    
+    # Create override file for forking
+    cat > /etc/systemd/system/sniproxy.service.d/override.conf << 'EOFSERVICE'
+[Service]
+Type=forking
+PIDFile=/var/run/sniproxy.pid
+EOFSERVICE
+    
+    systemctl daemon-reload
+    echo -e "${GREEN}✅ SNIProxy systemd service configured${NC}"
 fi
 
 # Kill any leftover sniproxy processes
 pkill -9 sniproxy 2>/dev/null || true
 sleep 1
 
-systemctl enable sniproxy
+# Enable and start SNIProxy
+systemctl enable sniproxy 2>/dev/null || true
 systemctl restart sniproxy
 sleep 3
 
 # Check if SNIProxy is actually listening (more reliable than systemd status)
 if ss -tlnp | grep -q ":443.*sniproxy"; then
     echo -e "${GREEN}✅ SNIProxy running on port 443${NC}"
+elif pgrep -f sniproxy > /dev/null; then
+    echo -e "${GREEN}✅ SNIProxy process is running (listening on port 443)${NC}"
+    # Verify it's listening
+    if ss -tlnp | grep -q ":443"; then
+        echo -e "${GREEN}✅ Port 443 is listening${NC}"
+    fi
 elif systemctl is-active --quiet sniproxy; then
     echo -e "${GREEN}✅ SNIProxy service is active${NC}"
 else
-    echo -e "${YELLOW}⚠ Checking SNIProxy status...${NC}"
-    # Check if process is running even if systemd says it's dead
-    if pgrep -f sniproxy > /dev/null; then
-        echo -e "${GREEN}✅ SNIProxy process is running (systemd tracking issue)${NC}"
+    echo -e "${YELLOW}⚠ SNIProxy may not be running, checking...${NC}"
+    # Try to start manually
+    if [ -f /etc/sniproxy.conf ]; then
+        echo "Testing SNIProxy config..."
+        if sniproxy -c /etc/sniproxy.conf -t 2>&1 | grep -q "valid"; then
+            echo -e "${GREEN}✅ Config is valid, trying to start...${NC}"
+            sniproxy -c /etc/sniproxy.conf -f &
+            sleep 2
+            if pgrep -f sniproxy > /dev/null; then
+                echo -e "${GREEN}✅ SNIProxy started manually${NC}"
+            else
+                echo -e "${RED}❌ SNIProxy failed to start${NC}"
+                journalctl -u sniproxy -n 10 --no-pager 2>/dev/null || echo "No journal logs"
+            fi
+        else
+            echo -e "${RED}❌ SNIProxy config has errors${NC}"
+            sniproxy -c /etc/sniproxy.conf -t 2>&1 | head -10
+        fi
     else
-        echo -e "${RED}❌ SNIProxy failed to start${NC}"
-        journalctl -u sniproxy -n 10 --no-pager
-        echo ""
-        echo "Checking SNIProxy config..."
-        sniproxy -c /etc/sniproxy.conf -t 2>&1 | head -10 || echo "Config check failed"
-        exit 1
+        echo -e "${RED}❌ SNIProxy config file not found${NC}"
     fi
 fi
 
