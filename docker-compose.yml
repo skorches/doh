@@ -28,6 +28,19 @@ services:
     networks:
       - doh-network
 
+  dns-proxy:
+    image: adguard/dnsproxy:latest
+    container_name: dns-proxy
+    command:
+      - --listen=0.0.0.0:5353
+      - --upstream=https://1.1.1.1/dns-query
+      - --upstream=https://1.0.0.1/dns-query
+      - --upstream=https://8.8.8.8/dns-query
+      - --upstream=https://8.8.4.4/dns-query
+    restart: unless-stopped
+    networks:
+      - doh-network
+
   coredns-smartdns:
     image: coredns/coredns:latest
     container_name: coredns-smartdns
@@ -38,6 +51,8 @@ services:
     ports:
       - "53:53/udp"
       - "53:53/tcp"
+    depends_on:
+      - dns-proxy
     restart: unless-stopped
     networks:
       - doh-network

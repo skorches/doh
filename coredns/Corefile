@@ -4,11 +4,14 @@
         fallthrough
     }
     
-    # Forward everything else to Cloudflare DNS
-    forward . 1.1.1.1 1.0.0.1
+    # Forward to local DNS proxy (uses DoH, bypasses port 53 blocking)
+    forward . dns-proxy:5353 {
+        max_concurrent 1000
+        except /etc/coredns/xbox-hosts
+    }
     
-    # Enable caching
-    cache 300
+    # Enable caching (longer cache for stability)
+    cache 600
     
     # Log errors
     errors
