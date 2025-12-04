@@ -79,17 +79,21 @@ if [ ${#MISSING_CONTAINERS[@]} -gt 0 ]; then
     sleep 5
 fi
 
+
 # 3. Check SNIProxy
 echo ""
 echo -e "${YELLOW}[3/8] SNIProxy Service${NC}"
-if systemctl is-active --quiet sniproxy; then
-    echo -e "${GREEN}✅ SNIProxy is running${NC}"
+if ss -tlnp | grep -q ":443.*sniproxy"; then
+    echo -e "${GREEN}✅ SNIProxy is running (listening on port 443)${NC}"
 elif systemctl is-enabled --quiet sniproxy; then
     echo -e "${YELLOW}⚠ SNIProxy is enabled but not running${NC}"
+    echo "   Killing any leftover processes..."
+    pkill -9 sniproxy 2>/dev/null || true
+    sleep 1
     echo "   Starting SNIProxy..."
     systemctl start sniproxy
     sleep 2
-    if systemctl is-active --quiet sniproxy; then
+    if ss -tlnp | grep -q ":443.*sniproxy"; then
         echo -e "${GREEN}✅ SNIProxy started${NC}"
     else
         echo -e "${RED}❌ Failed to start SNIProxy${NC}"
@@ -99,9 +103,75 @@ else
     echo -e "${YELLOW}⚠ SNIProxy is not enabled${NC}"
 fi
 
-# 4. Check 3proxy (if installed)
+# 4. Check Corefile (ensure it uses IPs, not hostnames)
 echo ""
-echo -e "${YELLOW}[4/8] 3proxy Service (Discord)${NC}"
+echo -e "${YELLOW}[4/9] Corefile Configuration${NC}"
+if [ -f "coredns/Corefile" ]; then
+    if grep -q "dns-proxy:" coredns/Corefile || (grep -q "forward" coredns/Corefile && ! grep -q "1\.1\.1\.1\|8\.8\.8\.8" coredns/Corefile); then
+        echo -e "${YELLOW}⚠ Corefile contains hostnames or invalid config, fixing...${NC}"
+        cat > coredns/Corefile << 'EOFCORE'
+. {
+    # Load custom hosts for Xbox and Discord domains first
+    hosts /etc/coredns/xbox-hosts {
+        fallthrough
+    }
+    
+    # Forward with parallel upstreams for stability (always use IPs, never hostnames)
+    forward . 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 {
+        max_concurrent 1000
+        except /etc/coredns/xbox-hosts
+    }
+    
+    # Enable caching (longer cache for stability)
+    cache 600
+    
+    # Log errors
+    errors
+    
+    # Health check endpoint
+    health :8080
+}
+EOFCORE
+        echo -e "${GREEN}✅ Corefile fixed${NC}"
+        docker restart coredns-smartdns 2>/dev/null || true
+        sleep 3
+    else
+        echo -e "${GREEN}✅ Corefile is correct${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠ Corefile not found, creating...${NC}"
+    mkdir -p coredns
+    cat > coredns/Corefile << 'EOFCORE'
+. {
+    # Load custom hosts for Xbox and Discord domains first
+    hosts /etc/coredns/xbox-hosts {
+        fallthrough
+    }
+    
+    # Forward with parallel upstreams for stability (always use IPs, never hostnames)
+    forward . 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 {
+        max_concurrent 1000
+        except /etc/coredns/xbox-hosts
+    }
+    
+    # Enable caching (longer cache for stability)
+    cache 600
+    
+    # Log errors
+    errors
+    
+    # Health check endpoint
+    health :8080
+}
+EOFCORE
+    echo -e "${GREEN}✅ Corefile created${NC}"
+    docker restart coredns-smartdns 2>/dev/null || true
+    sleep 3
+fi
+
+# 5. Check 3proxy (if installed)
+echo ""
+echo -e "${YELLOW}[5/9] 3proxy Service (Discord)${NC}"
 if systemctl list-unit-files | grep -q "3proxy.*enabled"; then
     if systemctl is-active --quiet 3proxy-discord 2>/dev/null || systemctl is-active --quiet 3proxy 2>/dev/null; then
         echo -e "${GREEN}✅ 3proxy is running${NC}"
@@ -113,9 +183,9 @@ else
     echo -e "${BLUE}ℹ 3proxy not configured (optional)${NC}"
 fi
 
-# 5. Check port 443
+# 6. Check port 443
 echo ""
-echo -e "${YELLOW}[5/8] Port 443 (SNIProxy)${NC}"
+echo -e "${YELLOW}[6/9] Port 443 (SNIProxy)${NC}"
 if ss -tlnp | grep -q ":443.*sniproxy"; then
     echo -e "${GREEN}✅ SNIProxy listening on port 443${NC}"
 else
@@ -123,9 +193,9 @@ else
     ISSUES=$((ISSUES + 1))
 fi
 
-# 6. Check port 53
+# 7. Check port 53
 echo ""
-echo -e "${YELLOW}[6/8] Port 53 (CoreDNS)${NC}"
+echo -e "${YELLOW}[7/9] Port 53 (CoreDNS)${NC}"
 if ss -tlnp | grep -q ":53.*coredns" || ss -ulnp | grep -q ":53.*coredns"; then
     echo -e "${GREEN}✅ CoreDNS listening on port 53${NC}"
 else
@@ -133,9 +203,9 @@ else
     ISSUES=$((ISSUES + 1))
 fi
 
-# 7. Test DNS resolution
+# 8. Test DNS resolution
 echo ""
-echo -e "${YELLOW}[7/8] DNS Resolution Test${NC}"
+echo -e "${YELLOW}[8/9] DNS Resolution Test${NC}"
 
 TEST_DOMAINS=("xboxlive.com" "callofduty.com" "discord.com")
 DNS_SUCCESS=0
@@ -156,9 +226,9 @@ if [ "$DNS_FAILED" -gt 0 ]; then
     ISSUES=$((ISSUES + 1))
 fi
 
-# 8. Test DoH endpoint
+# 9. Test DoH endpoint
 echo ""
-echo -e "${YELLOW}[8/8] DoH Endpoint Test${NC}"
+echo -e "${YELLOW}[9/9] DoH Endpoint Test${NC}"
 
 # Get domain from config
 DOMAIN=$(grep "server_name" nginx/conf.d/doh.conf 2>/dev/null | awk '{print $2}' | tr -d ';' || echo "localhost")

@@ -243,11 +243,14 @@ cat > coredns/Corefile << 'EOFCORE'
         fallthrough
     }
     
-    # Forward everything else to Cloudflare DNS
-    forward . 1.1.1.1 1.0.0.1
+    # Forward with parallel upstreams for stability (always use IPs, never hostnames)
+    forward . 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 {
+        max_concurrent 1000
+        except /etc/coredns/xbox-hosts
+    }
     
-    # Enable caching
-    cache 300
+    # Enable caching (longer cache for stability)
+    cache 600
     
     # Log errors
     errors

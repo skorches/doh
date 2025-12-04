@@ -4,8 +4,8 @@
         fallthrough
     }
     
-    # Forward to local DNS proxy (uses DoH, bypasses port 53 blocking)
-    forward . dns-proxy:5353 {
+    # Forward with parallel upstreams and reduced timeout for stability
+    forward . 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 {
         max_concurrent 1000
         except /etc/coredns/xbox-hosts
     }
