@@ -110,7 +110,7 @@ echo "Summary"
 echo "================================================"
 echo ""
 
-if [ "$DNS_FAILED" -gt 5 ] || [ "$failed" -gt 5 ]; then
+if [ "$DNS_FAILED" -gt 5 ]; then
     echo -e "${RED}❌ Network connectivity is unstable${NC}"
     echo ""
     echo "Possible causes:"
