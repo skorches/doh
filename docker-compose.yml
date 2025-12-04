@@ -37,6 +37,8 @@ services:
       - --upstream=https://1.0.0.1/dns-query
       - --upstream=https://8.8.8.8/dns-query
       - --upstream=https://8.8.4.4/dns-query
+      - --cache
+      - --cache-size=10000
     restart: unless-stopped
     networks:
       - doh-network
