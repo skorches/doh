@@ -170,6 +170,43 @@ pkill -9 haproxy 2>/dev/null || true
 sleep 3
 echo -e "${GREEN}✅ Services stopped and Docker cleaned${NC}"
 
+# Fix port 53 conflict (systemd-resolved)
+echo ""
+echo -e "${YELLOW}Checking port 53 availability...${NC}"
+if ss -ulnp | grep -q ":53.*systemd-resolve" || ss -tlnp | grep -q ":53.*systemd-resolve"; then
+    echo -e "${YELLOW}Port 53 is in use by systemd-resolved, fixing...${NC}"
+    
+    # Stop systemd-resolved
+    systemctl stop systemd-resolved 2>/dev/null || true
+    systemctl disable systemd-resolved 2>/dev/null || true
+    
+    # Configure systemd-resolved to not use port 53
+    mkdir -p /etc/systemd/resolved.conf.d/
+    cat > /etc/systemd/resolved.conf.d/no-port-53.conf << 'EOFRESOLVED'
+[Resolve]
+DNSStubListener=no
+EOFRESOLVED
+    
+    # Create static resolv.conf
+    if [ -L /etc/resolv.conf ]; then
+        rm -f /etc/resolv.conf
+    fi
+    cat > /etc/resolv.conf << 'EOFRESOLV'
+nameserver 8.8.8.8
+nameserver 1.1.1.1
+nameserver 8.8.4.4
+options use-vc
+EOFRESOLV
+    
+    # Restart Docker to pick up changes
+    systemctl restart docker 2>/dev/null || true
+    sleep 2
+    
+    echo -e "${GREEN}✅ Port 53 conflict resolved${NC}"
+else
+    echo -e "${GREEN}✅ Port 53 is available${NC}"
+fi
+
 # Step 2: Clean up old files
 echo ""
 echo -e "${YELLOW}[2/8] Cleaning up old files...${NC}"
