@@ -352,9 +352,11 @@ $VPS_IP fs.microsoft.com
 $VPS_IP activity.windows.com
 $VPS_IP client.wns.windows.com
 
-# === TEREDO ===
+# === TEREDO & NAT DETECTION ===
 $VPS_IP teredo.ipv6.microsoft.com
 $VPS_IP xbox.ipv6.microsoft.com
+$VPS_IP xbox.ipv4.microsoft.com
+$VPS_IP xbox.nat.microsoft.com
 
 # === DISCORD ===
 $VPS_IP discord.com

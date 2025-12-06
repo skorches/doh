@@ -206,6 +206,16 @@ $VPS_IP cdprojekt.com
 $VPS_IP www.cdprojekt.com
 $VPS_IP gog.com
 $VPS_IP www.gog.com
+
+# === TEREDO & NAT DETECTION ===
+$VPS_IP teredo.ipv6.microsoft.com
+$VPS_IP xbox.ipv6.microsoft.com
+$VPS_IP xbox.ipv4.microsoft.com
+$VPS_IP xbox.nat.microsoft.com
+
+# Microsoft licensing and network check domains
+$VPS_IP licensing.mp.microsoft.com
+$VPS_IP ipv6.msftncsi.com
 EOFHOSTS
 
 echo -e "${GREEN}✅ Hosts file generated${NC}"
