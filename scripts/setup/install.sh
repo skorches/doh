@@ -352,6 +352,18 @@ $VPS_IP fs.microsoft.com
 $VPS_IP activity.windows.com
 $VPS_IP client.wns.windows.com
 
+# === XBOX GAMING SUBDOMAINS (prevents disconnections) ===
+$VPS_IP rta.xboxlive.com
+$VPS_IP titlestorage.xboxlive.com
+$VPS_IP titlestoragewus0505.blob.core.windows.net
+$VPS_IP multiplayeractivity.xboxlive.com
+$VPS_IP achievements.xboxlive.com
+$VPS_IP userstats.xboxlive.com
+$VPS_IP displaycatalog.mp.microsoft.com
+$VPS_IP v10.events.data.microsoft.com
+$VPS_IP a978.i6g1.akamai.net
+$VPS_IP ntp.servercore.com
+
 # === TEREDO & NAT DETECTION ===
 $VPS_IP teredo.ipv6.microsoft.com
 $VPS_IP xbox.ipv6.microsoft.com
@@ -379,6 +391,8 @@ $VPS_IP sledgehammergames.com
 $VPS_IP infinityward.com
 $VPS_IP treyarch.com
 $VPS_IP activisionblizzard.com
+# Note: Call of Duty domains (CDN, demonware, STUN servers) must resolve to real IPs for proper connectivity
+# Do NOT add: cod-assets, ingest.datax, prod.cdni, demonware.net, genesis.stun.*, user-consent.prod.demonware.net
 
 # Electronic Arts (Battlefield, FIFA, etc.)
 $VPS_IP ea.com

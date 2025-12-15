@@ -136,10 +136,8 @@ $VPS_IP profile.activision.com
 $VPS_IP accounts.callofduty.com
 $VPS_IP atvi.com
 $VPS_IP www.atvi.com
-# Warzone game servers (Demonware - matchmaking/auth)
-$VPS_IP demonware.net
-$VPS_IP prod.demonware.net
-$VPS_IP demonware.com
+# Note: Call of Duty domains (CDN, demonware, STUN servers) must resolve to real IPs for proper connectivity
+# Do NOT add: cod-assets, ingest.datax, prod.cdni, demonware.net, demonware.com, genesis.stun.*, user-consent.prod.demonware.net
 
 # === ELECTRONIC ARTS (Battlefield, FIFA, etc.) ===
 $VPS_IP ea.com
@@ -206,6 +204,18 @@ $VPS_IP cdprojekt.com
 $VPS_IP www.cdprojekt.com
 $VPS_IP gog.com
 $VPS_IP www.gog.com
+
+# === XBOX GAMING SUBDOMAINS (prevents disconnections) ===
+$VPS_IP rta.xboxlive.com
+$VPS_IP titlestorage.xboxlive.com
+$VPS_IP titlestoragewus0505.blob.core.windows.net
+$VPS_IP multiplayeractivity.xboxlive.com
+$VPS_IP achievements.xboxlive.com
+$VPS_IP userstats.xboxlive.com
+$VPS_IP displaycatalog.mp.microsoft.com
+$VPS_IP v10.events.data.microsoft.com
+$VPS_IP a978.i6g1.akamai.net
+$VPS_IP ntp.servercore.com
 
 # === TEREDO & NAT DETECTION ===
 $VPS_IP teredo.ipv6.microsoft.com
