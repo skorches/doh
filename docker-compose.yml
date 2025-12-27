@@ -53,8 +53,6 @@ services:
     ports:
       - "53:53/udp"
       - "53:53/tcp"
-    depends_on:
-      - dns-proxy
     restart: unless-stopped
     networks:
       - doh-network
