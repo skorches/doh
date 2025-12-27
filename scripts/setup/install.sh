@@ -371,6 +371,8 @@ $VPS_IP account.live.com
 $VPS_IP login.microsoftonline.com
 
 # === MICROSOFT NETWORK CHECKS (NAT Detection) ===
+# CRITICAL: These domains are required for Xbox NAT type detection
+# Missing any of these will cause "NAT unavailable" errors
 $VPS_IP dns.msftncsi.com
 $VPS_IP www.msftncsi.com
 $VPS_IP ipv6.msftncsi.com
@@ -396,11 +398,14 @@ $VPS_IP v10.events.data.microsoft.com
 $VPS_IP a978.i6g1.akamai.net
 $VPS_IP ntp.servercore.com
 
-# === TEREDO & NAT DETECTION ===
-$VPS_IP teredo.ipv6.microsoft.com
+# === NAT DETECTION ===
+# CRITICAL: These domains are required for Xbox NAT type detection
+# Missing any of these will cause "NAT unavailable" errors
 $VPS_IP xbox.ipv6.microsoft.com
 $VPS_IP xbox.ipv4.microsoft.com
 $VPS_IP xbox.nat.microsoft.com
+# NOTE: teredo.ipv6.microsoft.com must resolve to REAL Teredo servers (not VPS IP)
+# Removing it from hosts file so it resolves correctly
 
 # === DISCORD ===
 $VPS_IP discord.com
@@ -845,6 +850,24 @@ ufw allow 443/tcp comment "HTTPS/DoH/Xbox" 2>/dev/null || true
 ufw allow 3074/tcp comment "Xbox Live" 2>/dev/null || true
 ufw allow 3074/udp comment "Xbox Live UDP" 2>/dev/null || true
 
+# Verify critical NAT domains are present
+echo ""
+echo -e "${YELLOW}Verifying NAT detection domains...${NC}"
+NAT_DOMAINS=("xbox.nat.microsoft.com" "xbox.ipv4.microsoft.com" "xbox.ipv6.microsoft.com" "dns.msftncsi.com" "ipv4.msftconnecttest.com")
+MISSING_DOMAINS=()
+for domain in "${NAT_DOMAINS[@]}"; do
+    if ! grep -q "$domain" "coredns/xbox-hosts"; then
+        MISSING_DOMAINS+=("$domain")
+    fi
+done
+
+if [ ${#MISSING_DOMAINS[@]} -eq 0 ]; then
+    echo -e "${GREEN}✅ All critical NAT domains present${NC}"
+else
+    echo -e "${RED}❌ Missing NAT domains: ${MISSING_DOMAINS[*]}${NC}"
+    echo -e "${YELLOW}⚠ This may cause NAT detection issues!${NC}"
+fi
+
 echo ""
 echo "================================================"
 echo -e "${GREEN}✅ Clean Rebuild Complete!${NC}"
@@ -863,6 +886,17 @@ echo "Expected: Should return VPS IP ($VPS_IP)"
 echo ""
 echo "Configure your router DoH URL:"
 echo "  https://$DOMAIN_NAME/dns-query"
+echo ""
+echo -e "${YELLOW}⚠️  IMPORTANT for Xbox NAT Detection:${NC}"
+echo "   - Ensure Xbox DNS is set to VPS IP: $VPS_IP"
+echo "   - Settings → Network → Advanced → DNS Settings"
+echo "   - Primary DNS: $VPS_IP"
+echo "   - Restart Xbox after changing DNS to clear cache"
+echo ""
+echo -e "${YELLOW}⚠️  If NAT is still unavailable, check for Double NAT:${NC}"
+echo "   - Double NAT occurs when router is behind ISP router/CGNAT"
+echo "   - Can cause 'NAT unavailable' or 'Double NAT detected'"
+echo "   - Solutions: Bridge mode, UPnP, Port forwarding (3074 TCP/UDP), or DMZ"
 echo ""
 echo "To get Let's Encrypt certificate (recommended):"
 echo "  ./scripts/setup/setup-letsencrypt.sh"

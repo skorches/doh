@@ -136,6 +136,8 @@ $VPS_IP gamepass.com
 $VPS_IP www.gamepass.com
 
 # === MICROSOFT NETWORK CHECKS (NAT Detection) ===
+# CRITICAL: These domains are required for Xbox NAT type detection
+# Missing any of these will cause "NAT unavailable" errors
 $VPS_IP dns.msftncsi.com
 $VPS_IP www.msftncsi.com
 $VPS_IP ipv6.msftncsi.com
@@ -257,11 +259,14 @@ $VPS_IP v10.events.data.microsoft.com
 $VPS_IP a978.i6g1.akamai.net
 $VPS_IP ntp.servercore.com
 
-# === TEREDO & NAT DETECTION ===
-$VPS_IP teredo.ipv6.microsoft.com
+# === NAT DETECTION ===
+# CRITICAL: These domains are required for Xbox NAT type detection
+# Missing any of these will cause "NAT unavailable" errors
 $VPS_IP xbox.ipv6.microsoft.com
 $VPS_IP xbox.ipv4.microsoft.com
 $VPS_IP xbox.nat.microsoft.com
+# NOTE: teredo.ipv6.microsoft.com must resolve to REAL Teredo servers (not VPS IP)
+# Removing it from hosts file so it resolves correctly
 
 # Microsoft licensing
 $VPS_IP licensing.mp.microsoft.com
@@ -277,6 +282,23 @@ docker-compose restart coredns-smartdns 2>/dev/null || docker compose restart co
     docker restart coredns-smartdns 2>/dev/null || echo -e "${RED}❌ Could not restart CoreDNS${NC}"
 }
 sleep 3
+
+# Verify critical NAT domains are present
+echo -e "${YELLOW}Verifying NAT detection domains...${NC}"
+NAT_DOMAINS=("xbox.nat.microsoft.com" "xbox.ipv4.microsoft.com" "xbox.ipv6.microsoft.com" "dns.msftncsi.com" "ipv4.msftconnecttest.com")
+MISSING_DOMAINS=()
+for domain in "${NAT_DOMAINS[@]}"; do
+    if ! grep -q "$domain" "$HOSTS_FILE"; then
+        MISSING_DOMAINS+=("$domain")
+    fi
+done
+
+if [ ${#MISSING_DOMAINS[@]} -eq 0 ]; then
+    echo -e "${GREEN}✅ All critical NAT domains present${NC}"
+else
+    echo -e "${RED}❌ Missing NAT domains: ${MISSING_DOMAINS[*]}${NC}"
+    echo -e "${YELLOW}⚠ This may cause NAT detection issues!${NC}"
+fi
 
 # Verify DNS resolution
 echo ""
@@ -303,6 +325,17 @@ echo "Next steps:"
 echo "1. Test DNS: dig @127.0.0.1 discord.com"
 echo "2. Restart your router to clear DNS cache"
 echo "3. Test Discord and Activision games"
+echo ""
+echo "⚠️  IMPORTANT for Xbox NAT Detection:"
+echo "   - Ensure Xbox DNS is set to VPS IP: $VPS_IP"
+echo "   - Settings → Network → Advanced → DNS Settings"
+echo "   - Primary DNS: $VPS_IP"
+echo "   - Restart Xbox after changing DNS to clear cache"
+echo ""
+echo "⚠️  If NAT is still unavailable, check for Double NAT:"
+echo "   - Double NAT occurs when router is behind ISP router/CGNAT"
+echo "   - Can cause 'NAT unavailable' or 'Double NAT detected'"
+echo "   - Solutions: Bridge mode, UPnP, Port forwarding, or DMZ"
 echo ""
 
 
