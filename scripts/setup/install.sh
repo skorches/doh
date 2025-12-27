@@ -308,22 +308,33 @@ echo -e "${YELLOW}[4/8] Creating CoreDNS configuration...${NC}"
 cat > coredns/Corefile << 'EOFCORE'
 . {
     # Load custom hosts for Xbox and Discord domains first
+    # CRITICAL: hosts plugin returns immediately, no cache/upstream needed
+    # reload ensures hosts file is checked periodically (prevents stale entries)
     hosts /etc/coredns/xbox-hosts {
         fallthrough
+        reload 1h
     }
     
-    # Forward with parallel upstreams for stability (always use IPs, never hostnames)
+    # Forward with parallel upstreams and fast fail settings
+    # max_fails and health_check prevent long timeouts when port 53 is blocked
+    # except directive ensures hosts file domains NEVER go to upstream
     forward . 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 {
         max_concurrent 1000
+        max_fails 1
+        health_check 5s
         except /etc/coredns/xbox-hosts
     }
     
     # Enable caching (very long cache to prevent upstream timeouts)
-    # When cache expires, CoreDNS tries upstream DNS (port 53 blocked) → timeout → NAT unavailable
-    # Long cache ensures NAT domains stay cached and don't need upstream queries
-    cache 3600
+    # NOTE: Domains in hosts file bypass cache and upstream entirely
+    # Cache only applies to domains NOT in hosts file
+    # When cache expires for non-hosts domains, fast fail prevents long timeouts
+    cache 3600 {
+        success 3600
+        denial 3600
+    }
     
-    # Log errors
+    # Log errors (helps diagnose issues)
     errors
     
     # Health check endpoint
