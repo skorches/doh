@@ -39,18 +39,50 @@ fi
 echo -e "${BLUE}Using directory: $DOH_DIR${NC}"
 cd "$DOH_DIR"
 
-# Get VPS IP (IPv4 only)
-VPS_IP=$(curl -4 -s ifconfig.me || curl -4 -s icanhazip.com || curl -4 -s ipinfo.io/ip || echo "")
+# Get VPS IP (auto-detect with multiple fallbacks)
+echo -e "${YELLOW}Auto-detecting VPS IP address...${NC}"
+VPS_IP=""
+# Try multiple services with timeout
+for service in "ifconfig.me" "icanhazip.com" "ipinfo.io/ip" "api.ipify.org" "checkip.amazonaws.com"; do
+    VPS_IP=$(curl -4 -s --max-time 5 "$service" 2>/dev/null | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1)
+    if [ -n "$VPS_IP" ]; then
+        break
+    fi
+done
+
+# If still empty, try from network interface
 if [ -z "$VPS_IP" ]; then
-    echo -e "${YELLOW}Could not auto-detect VPS IP${NC}"
-    read -p "Enter your VPS IP (IPv4): " VPS_IP
+    # Try to get IP from default route interface
+    DEFAULT_IF=$(ip route | grep default | awk '{print $5}' | head -1)
+    if [ -n "$DEFAULT_IF" ]; then
+        VPS_IP=$(ip -4 addr show "$DEFAULT_IF" 2>/dev/null | grep -oE 'inet [0-9.]+' | awk '{print $2}' | head -1)
+    fi
+fi
+
+# Validate IP format
+if [ -n "$VPS_IP" ]; then
+    if ! echo "$VPS_IP" | grep -qE '^([0-9]{1,3}\.){3}[0-9]{1,3}$'; then
+        VPS_IP=""
+    fi
+fi
+
+if [ -z "$VPS_IP" ]; then
+    echo -e "${YELLOW}⚠ Could not auto-detect VPS IP${NC}"
+    read -p "Enter your VPS IP (IPv4) manually: " VPS_IP
     if [ -z "$VPS_IP" ]; then
         echo -e "${RED}❌ VPS IP is required${NC}"
         exit 1
     fi
+    # Validate manual entry
+    if ! echo "$VPS_IP" | grep -qE '^([0-9]{1,3}\.){3}[0-9]{1,3}$'; then
+        echo -e "${RED}❌ Invalid IP address format!${NC}"
+        exit 1
+    fi
+else
+    echo -e "${GREEN}✅ Auto-detected VPS IP: $VPS_IP${NC}"
 fi
 
-echo -e "${BLUE}VPS IP: $VPS_IP${NC}"
+echo ""
 echo ""
 
 # Backup existing file
@@ -102,6 +134,14 @@ $VPS_IP windows.com
 $VPS_IP msn.com
 $VPS_IP gamepass.com
 $VPS_IP www.gamepass.com
+
+# === MICROSOFT NETWORK CHECKS (NAT Detection) ===
+$VPS_IP dns.msftncsi.com
+$VPS_IP www.msftncsi.com
+$VPS_IP ipv6.msftncsi.com
+$VPS_IP www.msftconnecttest.com
+$VPS_IP ipv4.msftconnecttest.com
+$VPS_IP ipv6.msftconnecttest.com
 
 # === DISCORD ===
 $VPS_IP discord.com
@@ -223,9 +263,8 @@ $VPS_IP xbox.ipv6.microsoft.com
 $VPS_IP xbox.ipv4.microsoft.com
 $VPS_IP xbox.nat.microsoft.com
 
-# Microsoft licensing and network check domains
+# Microsoft licensing
 $VPS_IP licensing.mp.microsoft.com
-$VPS_IP ipv6.msftncsi.com
 EOFHOSTS
 
 echo -e "${GREEN}✅ Hosts file generated${NC}"

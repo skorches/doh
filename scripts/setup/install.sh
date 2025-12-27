@@ -123,17 +123,48 @@ INSTALL_DIR="/root/doh"
 mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 
-# Get VPS IP
-VPS_IP=$(curl -4 -s ifconfig.me || curl -4 -s icanhazip.com || curl -4 -s ipinfo.io/ip || echo "")
+# Get VPS IP (auto-detect with multiple fallbacks)
+echo -e "${YELLOW}Auto-detecting VPS IP address...${NC}"
+VPS_IP=""
+# Try multiple services with timeout
+for service in "ifconfig.me" "icanhazip.com" "ipinfo.io/ip" "api.ipify.org" "checkip.amazonaws.com"; do
+    VPS_IP=$(curl -4 -s --max-time 5 "$service" 2>/dev/null | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1)
+    if [ -n "$VPS_IP" ]; then
+        break
+    fi
+done
+
+# If still empty, try from network interface
 if [ -z "$VPS_IP" ]; then
-    echo -e "${RED}❌ Could not detect VPS IP${NC}"
-    read -p "Enter your VPS IP address manually: " VPS_IP
-    if [ -z "$VPS_IP" ]; then
-        echo -e "${RED}VPS IP is required!${NC}"
-        exit 1
+    # Try to get IP from default route interface
+    DEFAULT_IF=$(ip route | grep default | awk '{print $5}' | head -1)
+    if [ -n "$DEFAULT_IF" ]; then
+        VPS_IP=$(ip -4 addr show "$DEFAULT_IF" 2>/dev/null | grep -oE 'inet [0-9.]+' | awk '{print $2}' | head -1)
     fi
 fi
-echo -e "${GREEN}Detected VPS IP: $VPS_IP${NC}"
+
+# Validate IP format
+if [ -n "$VPS_IP" ]; then
+    if ! echo "$VPS_IP" | grep -qE '^([0-9]{1,3}\.){3}[0-9]{1,3}$'; then
+        VPS_IP=""
+    fi
+fi
+
+if [ -z "$VPS_IP" ]; then
+    echo -e "${YELLOW}⚠ Could not auto-detect VPS IP${NC}"
+    read -p "Enter your VPS IP address (IPv4) manually: " VPS_IP
+    if [ -z "$VPS_IP" ]; then
+        echo -e "${RED}❌ VPS IP is required!${NC}"
+        exit 1
+    fi
+    # Validate manual entry
+    if ! echo "$VPS_IP" | grep -qE '^([0-9]{1,3}\.){3}[0-9]{1,3}$'; then
+        echo -e "${RED}❌ Invalid IP address format!${NC}"
+        exit 1
+    fi
+else
+    echo -e "${GREEN}✅ Auto-detected VPS IP: $VPS_IP${NC}"
+fi
 
 # Ask for domain name
 echo ""
@@ -339,11 +370,12 @@ $VPS_IP login.live.com
 $VPS_IP account.live.com
 $VPS_IP login.microsoftonline.com
 
-# === MICROSOFT NETWORK CHECKS ===
+# === MICROSOFT NETWORK CHECKS (NAT Detection) ===
 $VPS_IP dns.msftncsi.com
 $VPS_IP www.msftncsi.com
 $VPS_IP ipv6.msftncsi.com
 $VPS_IP www.msftconnecttest.com
+$VPS_IP ipv4.msftconnecttest.com
 $VPS_IP ipv6.msftconnecttest.com
 
 # === OTHER MICROSOFT ===
