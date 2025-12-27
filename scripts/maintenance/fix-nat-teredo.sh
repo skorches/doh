@@ -133,13 +133,13 @@ for domain in "${NAT_DOMAINS[@]}"; do
 done
 echo ""
 
-# Check Teredo is NOT in hosts
-if grep -q "teredo\.ipv6\.microsoft\.com" coredns/xbox-hosts; then
-    echo "❌ ERROR: teredo.ipv6.microsoft.com is still in hosts file!"
+# Check Teredo is NOT in hosts (only check IP entries, not comments)
+if grep -q "^[0-9].*teredo\.ipv6\.microsoft\.com" coredns/xbox-hosts; then
+    echo "❌ ERROR: teredo.ipv6.microsoft.com is still in hosts file as an IP entry!"
     echo "   This must be removed - Teredo must resolve to real servers"
     MISSING=1
 else
-    echo "✅ Teredo domain correctly removed from hosts file"
+    echo "✅ Teredo domain correctly removed from hosts file (only in comments, which is fine)"
 fi
 echo ""
 

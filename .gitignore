@@ -26,3 +26,7 @@ Thumbs.db
 
 # Environment
 .env
+
+# VPS-specific config files (auto-generated)
+coredns/xbox-hosts
+coredns/xbox-hosts.backup.*
