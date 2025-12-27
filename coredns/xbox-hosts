@@ -101,12 +101,9 @@
 91.235.234.92 www.rockstargames.com
 91.235.234.92 socialclub.rockstargames.com
 
-# === 2K GAMES ===
-91.235.234.92 2k.com
-91.235.234.92 www.2k.com
-91.235.234.92 2ksports.com
-91.235.234.92 www.2ksports.com
-91.235.234.92 take2games.com
+# === 2K GAMES (NBA 2K) ===
+# NOTE: 2K Games domains removed - NBA 2K requires these to resolve to real IPs for matchmaking/CDN
+# Do NOT add: 2k.com, 2ksports.com, take2games.com, or any CDN/matchmaking subdomains
 
 # === BLIZZARD ===
 91.235.234.92 blizzard.com

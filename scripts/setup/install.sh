@@ -397,7 +397,7 @@ $VPS_IP achievements.xboxlive.com
 $VPS_IP userstats.xboxlive.com
 $VPS_IP displaycatalog.mp.microsoft.com
 $VPS_IP v10.events.data.microsoft.com
-$VPS_IP a978.i6g1.akamai.net
+# NOTE: a978.i6g1.akamai.net removed - Akamai CDN domains must resolve to real IPs for game assets (NBA 2K, etc.)
 $VPS_IP ntp.servercore.com
 
 # === NAT DETECTION ===
@@ -464,11 +464,9 @@ $VPS_IP www.rockstargames.com
 $VPS_IP socialclub.rockstargames.com
 
 # 2K Games (NBA 2K, etc.)
-$VPS_IP 2k.com
-$VPS_IP www.2k.com
-$VPS_IP 2ksports.com
-$VPS_IP www.2ksports.com
-$VPS_IP take2games.com
+# NOTE: 2K Games domains removed - NBA 2K requires these to resolve to real IPs for matchmaking/CDN
+# Do NOT add: 2k.com, 2ksports.com, take2games.com, or any CDN/matchmaking subdomains
+# Adding these causes NBA 2K disconnections
 
 # Blizzard
 $VPS_IP blizzard.com
