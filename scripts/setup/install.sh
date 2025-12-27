@@ -318,8 +318,10 @@ cat > coredns/Corefile << 'EOFCORE'
         except /etc/coredns/xbox-hosts
     }
     
-    # Enable caching (longer cache for stability)
-    cache 600
+    # Enable caching (very long cache to prevent upstream timeouts)
+    # When cache expires, CoreDNS tries upstream DNS (port 53 blocked) → timeout → NAT unavailable
+    # Long cache ensures NAT domains stay cached and don't need upstream queries
+    cache 3600
     
     # Log errors
     errors
