@@ -133,9 +133,9 @@ doh/
     ├── setup/
     │   └── install.sh        # Main installer
     └── maintenance/
-        ├── fix-nat-teredo.sh      # Fix NAT/Teredo issues
+        ├── verify.sh          # Verify setup (all checks)
         ├── regenerate-hosts.sh    # Regenerate hosts file
-        └── verify-nat-fix.sh      # Verify NAT domains
+        └── fix-nat-teredo.sh      # Fix NAT/Teredo issues
 ```
 
 ## Troubleshooting
@@ -208,6 +208,15 @@ docker logs coredns-smartdns --tail 100 | grep -i "error\|timeout"
 
 ## Maintenance
 
+### Verify Setup
+
+Check if everything is configured correctly:
+
+```bash
+cd /root/doh
+bash scripts/maintenance/verify.sh
+```
+
 ### Regenerate Hosts File
 
 If your VPS IP changes or you need to update domains:
@@ -224,15 +233,6 @@ If NAT type becomes unavailable:
 ```bash
 cd /root/doh
 bash scripts/maintenance/fix-nat-teredo.sh
-```
-
-### Verify Setup
-
-Check if everything is configured correctly:
-
-```bash
-cd /root/doh
-bash scripts/maintenance/verify-nat-fix.sh
 ```
 
 ## Uninstalling

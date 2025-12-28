@@ -22,8 +22,8 @@ services:
       - UPSTREAM_DNS_SERVER=udp:coredns-smartdns:53
       - DOH_HTTP_PREFIX=/dns-query
       - DOH_SERVER_LISTEN=:8053
-      - DOH_SERVER_TIMEOUT=3
-      - DOH_SERVER_TRIES=1
+      - DOH_SERVER_TIMEOUT=10
+      - DOH_SERVER_TRIES=3
     restart: unless-stopped
     networks:
       - doh-network
