@@ -40,7 +40,21 @@ NAT_DOMAINS=(
 # Teredo domain (MUST resolve to real Microsoft servers, NOT VPS IP)
 TEREDO_DOMAIN="teredo.ipv6.microsoft.com"
 
-HOSTS_FILE="/root/doh/coredns/xbox-hosts"
+# Find doh directory
+DOH_DIR=""
+if [ -d "/root/doh" ]; then
+    DOH_DIR="/root/doh"
+elif [ -d "$HOME/doh" ]; then
+    DOH_DIR="$HOME/doh"
+elif [ -d "." ] && [ -f "docker-compose.yml" ]; then
+    DOH_DIR="."
+else
+    echo -e "${RED}❌ doh directory not found${NC}"
+    exit 1
+fi
+
+cd "$DOH_DIR"
+HOSTS_FILE="coredns/xbox-hosts"
 
 echo "[1/6] Checking hosts file..."
 if [ ! -f "$HOSTS_FILE" ]; then

@@ -367,6 +367,8 @@ $VPS_IP xsts.auth.xboxlive.com
 $VPS_IP sisu.xboxlive.com
 
 # === XBOX SERVICES ===
+$VPS_IP xbox.com
+$VPS_IP www.xbox.com
 $VPS_IP xboxservices.com
 $VPS_IP activity.xboxservices.com
 $VPS_IP contentaccess.xboxservices.com
@@ -377,10 +379,12 @@ $VPS_IP catalog.xboxservices.com
 # === GAME PASS ===
 $VPS_IP gamepass.com
 $VPS_IP catalog.gamepass.com
+$VPS_IP xboxgamepass.com
 
 # === MICROSOFT LOGIN ===
 $VPS_IP login.live.com
 $VPS_IP account.live.com
+$VPS_IP account.microsoft.com
 $VPS_IP login.microsoftonline.com
 
 # === MICROSOFT NETWORK CHECKS (NAT Detection) ===
@@ -398,6 +402,7 @@ $VPS_IP arc.msn.com
 $VPS_IP fs.microsoft.com
 $VPS_IP activity.windows.com
 $VPS_IP client.wns.windows.com
+$VPS_IP licensing.mp.microsoft.com
 
 # === XBOX GAMING SUBDOMAINS (prevents disconnections) ===
 $VPS_IP rta.xboxlive.com
@@ -408,6 +413,7 @@ $VPS_IP achievements.xboxlive.com
 $VPS_IP userstats.xboxlive.com
 $VPS_IP displaycatalog.mp.microsoft.com
 $VPS_IP v10.events.data.microsoft.com
+$VPS_IP v20.events.data.microsoft.com
 # NOTE: a978.i6g1.akamai.net removed - Akamai CDN domains must resolve to real IPs for game assets (NBA 2K, etc.)
 $VPS_IP ntp.servercore.com
 
