@@ -622,14 +622,14 @@ else
     fi
     
     if [ "$SSL_CHOICE" == "2" ]; then
-        echo "Creating self-signed certificate"
-        openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-            -keyout ssl/selfsigned.key \
-            -out ssl/selfsigned.crt \
+    echo "Creating self-signed certificate"
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+        -keyout ssl/selfsigned.key \
+        -out ssl/selfsigned.crt \
             -subj "/CN=$DOMAIN_NAME" 2>/dev/null
-        chmod 644 ssl/selfsigned.crt
-        chmod 600 ssl/selfsigned.key
-        echo -e "${GREEN}✅ Self-signed certificate created${NC}"
+    chmod 644 ssl/selfsigned.crt
+    chmod 600 ssl/selfsigned.key
+    echo -e "${GREEN}✅ Self-signed certificate created${NC}"
     fi
 fi
 
@@ -805,8 +805,8 @@ else
             sleep 2
             if pgrep -f sniproxy > /dev/null; then
                 echo -e "${GREEN}✅ SNIProxy started manually${NC}"
-            else
-                echo -e "${RED}❌ SNIProxy failed to start${NC}"
+else
+    echo -e "${RED}❌ SNIProxy failed to start${NC}"
                 journalctl -u sniproxy -n 10 --no-pager 2>/dev/null || echo "No journal logs"
             fi
         else
