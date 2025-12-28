@@ -112,10 +112,13 @@ $VPS_IP profile.xboxlive.com
 
 # === XBOX AUTHENTICATION ===
 $VPS_IP login.live.com
+$VPS_IP account.live.com
 $VPS_IP account.microsoft.com
 $VPS_IP login.microsoftonline.com
 $VPS_IP auth.xboxlive.com
 $VPS_IP user.auth.xboxlive.com
+$VPS_IP device.auth.xboxlive.com
+$VPS_IP title.auth.xboxlive.com
 $VPS_IP xsts.auth.xboxlive.com
 
 # === XBOX SERVICES ===
@@ -134,6 +137,9 @@ $VPS_IP windows.com
 $VPS_IP msn.com
 $VPS_IP gamepass.com
 $VPS_IP www.gamepass.com
+$VPS_IP xboxgamepass.com
+$VPS_IP catalog.xboxservices.com
+$VPS_IP catalog.gamepass.com
 
 # === MICROSOFT NETWORK CHECKS (NAT Detection) ===
 # CRITICAL: These domains are required for Xbox NAT type detection
@@ -254,8 +260,11 @@ $VPS_IP achievements.xboxlive.com
 $VPS_IP userstats.xboxlive.com
 $VPS_IP displaycatalog.mp.microsoft.com
 $VPS_IP v10.events.data.microsoft.com
+$VPS_IP v20.events.data.microsoft.com
 # NOTE: a978.i6g1.akamai.net removed - Akamai CDN domains must resolve to real IPs for game assets (NBA 2K, etc.)
 $VPS_IP ntp.servercore.com
+$VPS_IP activity.windows.com
+$VPS_IP client.wns.windows.com
 
 # === NAT DETECTION ===
 # CRITICAL: These domains are required for Xbox NAT type detection
@@ -266,7 +275,9 @@ $VPS_IP xbox.nat.microsoft.com
 # NOTE: teredo.ipv6.microsoft.com must resolve to REAL Teredo servers (not VPS IP)
 # Removing it from hosts file so it resolves correctly
 
-# Microsoft licensing
+# === MICROSOFT SERVICES ===
+$VPS_IP arc.msn.com
+$VPS_IP fs.microsoft.com
 $VPS_IP licensing.mp.microsoft.com
 EOFHOSTS
 
