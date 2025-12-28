@@ -45,17 +45,18 @@ echo ""
 
 # Step 2: Check if SSL certificates exist
 echo "[2/5] Checking SSL certificates..."
-if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/$DOMAIN/privkey.pem" ]; then
     SSL_CERT="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
     SSL_KEY="/etc/letsencrypt/live/$DOMAIN/privkey.pem"
     echo -e "${GREEN}✅ Let's Encrypt certificate found${NC}"
-elif [ -f "/root/doh/ssl/selfsigned.crt" ]; then
+    echo "  Certificate: $SSL_CERT"
+    echo "  Key: $SSL_KEY"
+elif [ -f "/root/doh/ssl/selfsigned.crt" ] && [ -f "/root/doh/ssl/selfsigned.key" ]; then
     SSL_CERT="/etc/nginx/ssl/selfsigned.crt"
     SSL_KEY="/etc/nginx/ssl/selfsigned.key"
     echo -e "${YELLOW}⚠️  Using self-signed certificate${NC}"
 else
-    echo -e "${RED}❌ No SSL certificate found${NC}"
-    echo "Creating self-signed certificate..."
+    echo -e "${YELLOW}⚠️  No SSL certificate found, creating self-signed...${NC}"
     mkdir -p /root/doh/ssl
     openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
         -keyout /root/doh/ssl/selfsigned.key \
