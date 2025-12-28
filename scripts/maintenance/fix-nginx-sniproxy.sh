@@ -75,8 +75,9 @@ mkdir -p /root/doh/nginx/conf.d
 
 cat > /root/doh/nginx/conf.d/doh.conf << EOFNGINX
 server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
     
     server_name $DOMAIN;
     
@@ -160,15 +161,29 @@ echo ""
 # Step 5: Restart Nginx
 echo "[5/5] Restarting Nginx..."
 docker restart doh-nginx
-sleep 5
+sleep 8
 
 # Check if Nginx is running
-if docker ps | grep -q "doh-nginx.*Up"; then
+NGINX_STATUS=$(docker inspect doh-nginx --format '{{.State.Status}}' 2>/dev/null || echo "unknown")
+if [ "$NGINX_STATUS" == "running" ]; then
     echo -e "${GREEN}✅ Nginx is running${NC}"
+elif [ "$NGINX_STATUS" == "restarting" ]; then
+    echo -e "${YELLOW}⚠️  Nginx is restarting, checking logs...${NC}"
+    sleep 5
+    docker logs doh-nginx --tail 30 2>&1 | grep -iE "error|emerg|fatal" | tail -10 || echo "No fatal errors found"
+    NGINX_STATUS=$(docker inspect doh-nginx --format '{{.State.Status}}' 2>/dev/null || echo "unknown")
+    if [ "$NGINX_STATUS" == "running" ]; then
+        echo -e "${GREEN}✅ Nginx is now running${NC}"
+    else
+        echo -e "${RED}❌ Nginx is still not running${NC}"
+        echo "Full logs:"
+        docker logs doh-nginx --tail 50 2>&1 | tail -20
+        exit 1
+    fi
 else
-    echo -e "${RED}❌ Nginx is still crashing${NC}"
+    echo -e "${RED}❌ Nginx status: $NGINX_STATUS${NC}"
     echo "Checking logs..."
-    docker logs doh-nginx --tail 20 2>&1 | tail -10
+    docker logs doh-nginx --tail 50 2>&1 | tail -20
     exit 1
 fi
 echo ""
