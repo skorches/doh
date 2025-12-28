@@ -325,13 +325,13 @@ cat > coredns/Corefile << 'EOFCORE'
         except /etc/coredns/xbox-hosts
     }
     
-    # Enable caching (very long cache to prevent upstream timeouts)
+    # Enable caching (24-hour cache for maximum stability)
     # NOTE: Domains in hosts file bypass cache and upstream entirely
     # Cache only applies to domains NOT in hosts file
-    # When cache expires for non-hosts domains, fast fail prevents long timeouts
-    cache 3600 {
-        success 3600
-        denial 3600
+    # Long cache reduces upstream queries significantly (prevents timeouts)
+    cache 86400 {
+        success 86400
+        denial 86400
     }
     
     # Log errors (helps diagnose issues)
@@ -530,6 +530,7 @@ cat > nginx/conf.d/doh.conf << EOFNGINX
 server {
     listen 443 ssl;
     listen [::]:443 ssl;
+    http2 on;
     
     server_name $DOMAIN_NAME;
     
@@ -538,19 +539,51 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
     
-    # DoH endpoint - proxy to backend
+    # Connection settings
+    keepalive_timeout 65;
+    client_max_body_size 10m;
+    
+    # Timeouts
+    proxy_connect_timeout 10s;
+    proxy_send_timeout 10s;
+    proxy_read_timeout 10s;
+    
+    # DoH endpoint - support GET, POST, and OPTIONS (prevents HTTP 405 errors)
     location /dns-query {
+        # Allow all DoH methods (GET, POST, OPTIONS)
+        limit_except GET POST OPTIONS {
+            deny all;
+        }
+        
+        # Handle OPTIONS (CORS preflight)
+        if (\$request_method = OPTIONS) {
+            add_header Access-Control-Allow-Origin *;
+            add_header Access-Control-Allow-Methods "GET, POST, OPTIONS";
+            add_header Access-Control-Allow-Headers "Content-Type";
+            add_header Access-Control-Max-Age 3600;
+            add_header Content-Length 0;
+            add_header Content-Type text/plain;
+            return 204;
+        }
+        
+        # Proxy to DoH backend
         proxy_pass http://doh-backend:8053;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        proxy_connect_timeout 10s;
-        proxy_send_timeout 10s;
-        proxy_read_timeout 10s;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        
+        # CORS headers for DoH
+        add_header Access-Control-Allow-Origin * always;
+        add_header Access-Control-Allow-Methods "GET, POST, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Content-Type" always;
     }
     
     # Root page - show info
     location = / {
-        return 200 "DNS over HTTPS (DoH) Server\n\nEndpoint: https://$DOMAIN_NAME/dns-query\n\nThis is a DoH server for DNS queries.\n\nTo test:\n  curl -H 'accept: application/dns-json' 'https://$DOMAIN_NAME/dns-query?name=google.com&type=A'\n\nConfigure in your router's DoH settings:\n  https://$DOMAIN_NAME/dns-query\n";
+        return 200 "DNS over HTTPS (DoH) Server\n\nEndpoint: https://$DOMAIN_NAME/dns-query\n\nSupports: GET, POST, OPTIONS\n\nConfigure in your router's DoH settings:\n  https://$DOMAIN_NAME/dns-query\n";
         add_header Content-Type text/plain;
     }
 }
