@@ -140,6 +140,40 @@ else
 fi
 
 echo ""
+# Check for DoH 405 errors and fix if needed
+echo ""
+echo "Checking DoH configuration..."
+DOH_405_FIXED=false
+if docker logs doh-nginx --tail 50 2>&1 | grep -q "405"; then
+    echo "Fixing DoH HTTP 405 errors..."
+    DOMAIN=$(grep "server_name" nginx/conf.d/doh.conf 2>/dev/null | head -1 | awk '{print $2}' | sed 's/;//' || echo "")
+    if [ -n "$DOMAIN" ]; then
+        # Update Nginx to allow POST method
+        if ! grep -q "limit_except GET POST OPTIONS" nginx/conf.d/doh.conf 2>/dev/null; then
+            sed -i '/location \/dns-query {/a\
+        limit_except GET POST OPTIONS {\
+            deny all;\
+        }\
+        if ($request_method = OPTIONS) {\
+            add_header Access-Control-Allow-Origin *;\
+            add_header Access-Control-Allow-Methods "GET, POST, OPTIONS";\
+            add_header Access-Control-Allow-Headers "Content-Type";\
+            add_header Access-Control-Max-Age 3600;\
+            add_header Content-Length 0;\
+            add_header Content-Type text/plain;\
+            return 204;\
+        }\
+        add_header Access-Control-Allow-Origin * always;\
+        add_header Access-Control-Allow-Methods "GET, POST, OPTIONS" always;
+' nginx/conf.d/doh.conf
+            docker restart doh-nginx
+            sleep 3
+            DOH_405_FIXED=true
+            echo -e "${GREEN}✅ DoH 405 errors fixed${NC}"
+        fi
+    fi
+fi
+
 echo "================================================"
 echo -e "${GREEN}✅ Fix Complete!${NC}"
 echo "================================================"
@@ -160,6 +194,7 @@ echo ""
 echo "If NAT is still unavailable:"
 echo "  - Check router firewall settings"
 echo "  - Ensure port 3074 (UDP) is open"
-echo "  - Check if Xbox can reach VPS DNS: dig @$VPS_IP xboxlive.com"
+echo "  - Enable UPnP on router"
+echo "  - Check for double NAT"
 echo ""
 

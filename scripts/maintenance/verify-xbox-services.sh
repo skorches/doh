@@ -29,6 +29,8 @@ echo "================================================"
 echo ""
 echo "VPS IP: $VPS_IP"
 echo ""
+echo "This script verifies all services and domains."
+echo ""
 
 # Critical NAT detection domains
 NAT_DOMAINS=(
@@ -247,6 +249,49 @@ for domain in "${XBOX_DOMAINS[@]}"; do
 done
 echo ""
 
+# Quick domain check (minimal version of verify-all-domains.sh)
+echo "[9/9] Quick Domain Check..."
+HOSTS_FILE="coredns/xbox-hosts"
+if [ -f "$HOSTS_FILE" ]; then
+    TOTAL_DOMAINS=$(grep -c "^[0-9]" "$HOSTS_FILE" 2>/dev/null || echo "0")
+    echo -e "  ${GREEN}✅ Hosts file has $TOTAL_DOMAINS domain entries${NC}"
+    
+    # Check a few critical domains
+    CRITICAL_DOMAINS=("xboxlive.com" "xbox.com" "discord.com" "activision.com" "ea.com")
+    MISSING_CRITICAL=0
+    for domain in "${CRITICAL_DOMAINS[@]}"; do
+        if ! grep -q "^[0-9].*$domain" "$HOSTS_FILE"; then
+            MISSING_CRITICAL=$((MISSING_CRITICAL + 1))
+        fi
+    done
+    
+    if [ $MISSING_CRITICAL -eq 0 ]; then
+        echo -e "  ${GREEN}✅ All critical domains present${NC}"
+    else
+        echo -e "  ${YELLOW}⚠️  $MISSING_CRITICAL critical domain(s) missing${NC}"
+        echo "     Run: bash scripts/maintenance/regenerate-hosts.sh"
+    fi
+fi
+echo ""
+
+# Auto-start services if needed
+echo "[10/10] Ensuring all services are running..."
+if ! systemctl is-active docker >/dev/null 2>&1; then
+    systemctl start docker
+    sleep 2
+fi
+
+if ! docker ps --format "{{.Names}}" | grep -q "^coredns-smartdns$"; then
+    docker compose up -d coredns-smartdns 2>/dev/null || docker-compose up -d coredns-smartdns 2>/dev/null || true
+    echo -e "  ${GREEN}✅ Started CoreDNS${NC}"
+fi
+
+if ! systemctl is-active sniproxy >/dev/null 2>&1; then
+    systemctl start sniproxy 2>/dev/null || true
+    echo -e "  ${GREEN}✅ Started SNIProxy${NC}"
+fi
+echo ""
+
 # Summary
 echo "================================================"
 echo "Summary"
@@ -274,8 +319,8 @@ else
     echo "To fix issues:"
     echo "  • Docker containers: docker compose up -d"
     echo "  • SNIProxy: systemctl start sniproxy"
-    echo "  • NAT domains: bash scripts/maintenance/fix-xbox-nat-unavailable.sh"
-    echo "  • DNS issues: bash scripts/maintenance/fix-nat-teredo.sh"
+    echo "  • NAT/DNS issues: bash scripts/maintenance/fix-xbox-nat-unavailable.sh"
+    echo "  • Regenerate hosts: bash scripts/maintenance/regenerate-hosts.sh"
     echo ""
 fi
 
