@@ -22,7 +22,7 @@ A simple self-hosted Smart DNS solution to bypass ISP blocking for Xbox Live, Di
 
 ```bash
 # Clone repository
-git clone https://github.com/YOUR_USERNAME/doh.git
+git clone https://github.com/skorches/doh
 cd doh
 
 # Run installer
