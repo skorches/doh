@@ -123,19 +123,23 @@ curl -k -H 'accept: application/dns-json' \
 ```
 doh/
 ├── README.md                 # This file
-├── docker-compose.yml        # Docker services
+├── docker-compose.yml        # Docker services (auto-generated)
 ├── coredns/
-│   ├── Corefile              # CoreDNS config
+│   ├── Corefile              # CoreDNS config (auto-generated)
 │   └── xbox-hosts            # Domain mappings (auto-generated)
 ├── nginx/
 │   └── conf.d/              # Nginx config (auto-generated)
 └── scripts/
     ├── setup/
-    │   └── install.sh        # Main installer
+    │   ├── install.sh        # Main installer
+    │   ├── update.sh         # Update running config
+    │   ├── cleanup.sh        # Complete removal
+    │   └── setup-letsencrypt.sh  # Get SSL certificate
     └── maintenance/
-        ├── verify.sh          # Verify setup (all checks)
-        ├── regenerate-hosts.sh    # Regenerate hosts file
-        └── fix-nat-teredo.sh      # Fix NAT/Teredo issues
+        ├── verify-xbox-services.sh     # Verify all services
+        ├── fix-xbox-nat-unavailable.sh # Fix NAT issues
+        ├── regenerate-hosts.sh         # Regenerate hosts file
+        └── verify-scripts.sh           # Verify script integrity
 ```
 
 ## Troubleshooting
@@ -208,13 +212,29 @@ docker logs coredns-smartdns --tail 100 | grep -i "error\|timeout"
 
 ## Maintenance
 
+### Update Running Configuration
+
+Apply latest optimizations and domain updates without reinstalling:
+
+```bash
+cd /root/doh
+bash scripts/setup/update.sh
+```
+
+This will:
+- Backup current configuration
+- Update to 135 latest domains
+- Apply cache optimizations (24-hour cache)
+- Restart all services
+- Verify everything is working
+
 ### Verify Setup
 
 Check if everything is configured correctly:
 
 ```bash
 cd /root/doh
-bash scripts/maintenance/verify.sh
+bash scripts/maintenance/verify-xbox-services.sh
 ```
 
 ### Regenerate Hosts File
@@ -232,20 +252,29 @@ If NAT type becomes unavailable:
 
 ```bash
 cd /root/doh
-bash scripts/maintenance/fix-nat-teredo.sh
+bash scripts/maintenance/fix-xbox-nat-unavailable.sh
 ```
 
 ## Uninstalling
 
-To remove everything:
+To remove everything cleanly:
 
 ```bash
 cd /root/doh
-docker compose down
-systemctl stop sniproxy
-systemctl disable sniproxy
-apt-get remove -y sniproxy
-rm -rf /root/doh
+bash scripts/setup/cleanup.sh
+```
+
+This will remove:
+- All Docker containers and volumes
+- SNIProxy service
+- Generated configs
+- Firewall rules
+- SSL certificates
+
+To also remove the project directory:
+```bash
+cd ~
+rm -rf doh
 ```
 
 ## Security Notes

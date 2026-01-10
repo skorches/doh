@@ -370,14 +370,25 @@ $VPS_IP sisu.xboxlive.com
 $VPS_IP xbox.com
 $VPS_IP www.xbox.com
 $VPS_IP xboxservices.com
+$VPS_IP www.xboxservices.com
 $VPS_IP activity.xboxservices.com
 $VPS_IP contentaccess.xboxservices.com
 $VPS_IP contentaccess.exp.xboxservices.com
 $VPS_IP licensing.xboxservices.com
 $VPS_IP catalog.xboxservices.com
+$VPS_IP live.com
+$VPS_IP www.live.com
+$VPS_IP microsoft.com
+$VPS_IP www.microsoft.com
+$VPS_IP microsoftonline.com
+$VPS_IP msn.com
+$VPS_IP windows.com
+$VPS_IP msftncsi.com
+$VPS_IP msftconnecttest.com
 
 # === GAME PASS ===
 $VPS_IP gamepass.com
+$VPS_IP www.gamepass.com
 $VPS_IP catalog.gamepass.com
 $VPS_IP xboxgamepass.com
 
@@ -436,13 +447,26 @@ $VPS_IP discord.gg
 $VPS_IP discordapp.com
 $VPS_IP discordapp.net
 $VPS_IP discord.media
+$VPS_IP status.discord.com
+$VPS_IP api.discord.com
+$VPS_IP gateway.discord.com
+$VPS_IP cdn.discord.com
+$VPS_IP images-ext-1.discordapp.net
+$VPS_IP images-ext-2.discordapp.net
+$VPS_IP media.discordapp.com
 
 # === GAME PUBLISHERS ===
 # Activision (Call of Duty, Warzone)
 $VPS_IP activision.com
 $VPS_IP www.activision.com
+$VPS_IP atvi.com
+$VPS_IP www.atvi.com
 $VPS_IP callofduty.com
 $VPS_IP www.callofduty.com
+$VPS_IP accounts.callofduty.com
+$VPS_IP profile.callofduty.com
+$VPS_IP s2s.callofduty.com
+$VPS_IP profile.activision.com
 $VPS_IP sledgehammergames.com
 $VPS_IP infinityward.com
 $VPS_IP treyarch.com

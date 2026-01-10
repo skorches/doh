@@ -120,12 +120,17 @@ $VPS_IP user.auth.xboxlive.com
 $VPS_IP device.auth.xboxlive.com
 $VPS_IP title.auth.xboxlive.com
 $VPS_IP xsts.auth.xboxlive.com
+$VPS_IP sisu.xboxlive.com
 
 # === XBOX SERVICES ===
 $VPS_IP xboxservices.com
 $VPS_IP www.xboxservices.com
 $VPS_IP xbox.com
 $VPS_IP www.xbox.com
+$VPS_IP activity.xboxservices.com
+$VPS_IP contentaccess.xboxservices.com
+$VPS_IP contentaccess.exp.xboxservices.com
+$VPS_IP licensing.xboxservices.com
 $VPS_IP live.com
 $VPS_IP www.live.com
 $VPS_IP microsoft.com
