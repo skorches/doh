@@ -174,23 +174,14 @@ $VPS_IP images-ext-1.discordapp.net
 $VPS_IP images-ext-2.discordapp.net
 $VPS_IP media.discordapp.com
 
-# === ACTIVISION (Call of Duty, Warzone) ===
-$VPS_IP activision.com
-$VPS_IP www.activision.com
-$VPS_IP callofduty.com
-$VPS_IP www.callofduty.com
-$VPS_IP sledgehammergames.com
-$VPS_IP infinityward.com
-$VPS_IP treyarch.com
-$VPS_IP activisionblizzard.com
-$VPS_IP profile.callofduty.com
-$VPS_IP s2s.callofduty.com
-$VPS_IP profile.activision.com
-$VPS_IP accounts.callofduty.com
-$VPS_IP atvi.com
-$VPS_IP www.atvi.com
-# Note: Call of Duty domains (CDN, demonware, STUN servers) must resolve to real IPs for proper connectivity
-# Do NOT add: cod-assets, ingest.datax, prod.cdni, demonware.net, demonware.com, genesis.stun.*, user-consent.prod.demonware.net
+# === ACTIVISION / CALL OF DUTY ===
+# NOTE: Call of Duty domains REMOVED - they cause disconnections/timeouts when routed through VPS
+# CoD games need DIRECT, LOW-LATENCY connections to:
+#   - Matchmaking servers (demonware)
+#   - Game servers
+#   - CDN servers (asset delivery)
+# Routing through VPS causes: "Lost connection to host/server", timeouts, matchmaking failures
+# Do NOT add: activision.com, callofduty.com, or ANY CoD/Activision subdomains
 
 # === ELECTRONIC ARTS (Battlefield, FIFA, etc.) ===
 $VPS_IP ea.com

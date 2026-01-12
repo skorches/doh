@@ -203,7 +203,7 @@ doh/
 Some games need CDN/matchmaking domains to resolve to real IPs:
 
 - **NBA 2K**: 2k.com, 2ksports.com domains removed (must resolve to real IPs)
-- **Call of Duty**: CDN and demonware domains removed (must resolve to real IPs)
+- **Call of Duty**: ALL Activision/CoD domains removed (causes "Lost connection to host/server" timeouts)
 
 If a game disconnects, check CoreDNS logs for missing domains:
 ```bash
