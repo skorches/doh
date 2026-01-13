@@ -770,10 +770,7 @@ table https_hosts {
     .*\.rockstargames\.com$ *
     .*\.socialclub\.rockstargames\.com$ *
     
-    # 2K Games
-    .*\.2k\.com$ *
-    .*\.2ksports\.com$ *
-    .*\.take2games\.com$ *
+    # 2K Games - REMOVED (NBA 2K requires direct connections for matchmaking/CDN)
     
     # Blizzard
     .*\.blizzard\.com$ *

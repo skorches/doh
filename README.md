@@ -137,7 +137,9 @@ doh/
     │   └── setup-letsencrypt.sh  # Get SSL certificate
     └── maintenance/
         ├── verify-xbox-services.sh     # Verify all services
+        ├── verify-excluded-domains.sh  # Check for excluded domains
         ├── fix-xbox-nat-unavailable.sh # Fix NAT issues
+        ├── fix-cod-disconnects.sh      # Fix Call of Duty timeouts
         ├── regenerate-hosts.sh         # Regenerate hosts file
         └── verify-scripts.sh           # Verify script integrity
 ```
@@ -200,12 +202,46 @@ doh/
 
 ### Game Disconnections (NBA 2K, Call of Duty, etc.)
 
-Some games need CDN/matchmaking domains to resolve to real IPs:
+**Important:** Some games require **direct connections** for optimal performance:
 
-- **NBA 2K**: 2k.com, 2ksports.com domains removed (must resolve to real IPs)
-- **Call of Duty**: ALL Activision/CoD domains removed (causes "Lost connection to host/server" timeouts)
+#### Excluded Games (Connect Directly, NOT via VPS):
 
-If a game disconnects, check CoreDNS logs for missing domains:
+- **Call of Duty** (Warzone, Black Ops, Modern Warfare, etc.)
+  - ❌ Routing via VPS causes: "Lost connection to host/server", connection timeouts
+  - ✅ Direct connection ensures: Low latency, stable matchmaking, no disconnects
+  - All `activision.com`, `callofduty.com`, `demonware.net` domains excluded
+
+- **NBA 2K** (NBA 2K24, 2K25, etc.)
+  - ❌ Routing via VPS causes: Matchmaking failures, CDN connection issues
+  - ✅ Direct connection ensures: Proper CDN access, matchmaking works
+  - All `2k.com`, `2ksports.com`, `take2games.com` domains excluded
+
+#### Why Some Games Are Excluded:
+
+These games use **peer-to-peer** or **low-latency game servers** that require:
+- Sub-50ms latency (adding VPS hop increases latency by 50-100ms)
+- Direct UDP connections for game traffic
+- CDN servers geographically close to you
+
+Routing them through VPS breaks these requirements → disconnections/timeouts.
+
+#### Verify Excluded Domains:
+
+Check if any excluded domains accidentally got added:
+
+```bash
+cd /root/doh
+bash scripts/maintenance/verify-excluded-domains.sh
+```
+
+If excluded domains are found, fix with:
+```bash
+bash scripts/maintenance/fix-cod-disconnects.sh
+```
+
+#### Other Games:
+
+If another game disconnects, check CoreDNS logs:
 ```bash
 docker logs coredns-smartdns --tail 100 | grep -i "error\|timeout"
 ```

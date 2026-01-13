@@ -36,9 +36,17 @@ fi
 echo "Domain: $DOMAIN"
 echo ""
 
-# Get VPS IP
-VPS_IP=$(curl -4 -s ifconfig.me || curl -4 -s icanhazip.com || curl -4 -s ipinfo.io/ip)
-echo "VPS IP: $VPS_IP"
+# Get VPS IP from local network interface
+DEFAULT_IF=$(ip route | grep default | awk '{print $5}' | head -1)
+VPS_IP=""
+if [ -n "$DEFAULT_IF" ]; then
+    VPS_IP=$(ip -4 addr show "$DEFAULT_IF" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
+fi
+if [ -z "$VPS_IP" ]; then
+    VPS_IP=$(ip -4 addr show | grep -oP 'inet \K[\d.]+' | grep -v '^127\.' | head -1)
+fi
+
+echo "VPS IP: ${VPS_IP:-UNKNOWN}"
 echo ""
 
 # Check if domain DNS points to VPS

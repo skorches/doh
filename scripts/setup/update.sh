@@ -36,11 +36,19 @@ cp docker-compose.yml "$BACKUP_DIR/" 2>/dev/null || true
 echo -e "${GREEN}✅ Backup created: $BACKUP_DIR${NC}"
 echo ""
 
-# Auto-detect VPS IP
-echo -e "${YELLOW}[2/7] Detecting VPS IP address...${NC}"
-VPS_IP=$(curl -4 -s --max-time 5 ifconfig.me || curl -4 -s --max-time 5 icanhazip.com || ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '127.0.0.1' | head -1)
+# Auto-detect VPS IP from local network interface
+echo -e "${YELLOW}[2/7] Detecting VPS IP address from network interface...${NC}"
+DEFAULT_IF=$(ip route | grep default | awk '{print $5}' | head -1)
+VPS_IP=""
+if [ -n "$DEFAULT_IF" ]; then
+    VPS_IP=$(ip -4 addr show "$DEFAULT_IF" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
+fi
 if [ -z "$VPS_IP" ]; then
-    echo -e "${RED}❌ Could not detect VPS IP${NC}"
+    VPS_IP=$(ip -4 addr show | grep -oP 'inet \K[\d.]+' | grep -v '^127\.' | head -1)
+fi
+
+if [ -z "$VPS_IP" ]; then
+    echo -e "${RED}❌ Could not detect VPS IP from network interface${NC}"
     exit 1
 fi
 echo -e "${GREEN}✅ VPS IP: $VPS_IP${NC}"

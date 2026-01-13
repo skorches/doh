@@ -39,48 +39,34 @@ fi
 echo -e "${BLUE}Using directory: $DOH_DIR${NC}"
 cd "$DOH_DIR"
 
-# Get VPS IP (auto-detect with multiple fallbacks)
-echo -e "${YELLOW}Auto-detecting VPS IP address...${NC}"
-VPS_IP=""
-# Try multiple services with timeout
-for service in "ifconfig.me" "icanhazip.com" "ipinfo.io/ip" "api.ipify.org" "checkip.amazonaws.com"; do
-    VPS_IP=$(curl -4 -s --max-time 5 "$service" 2>/dev/null | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1)
-    if [ -n "$VPS_IP" ]; then
-        break
-    fi
-done
+# Get VPS IP from local network interface
+echo -e "${YELLOW}Detecting VPS IP from network interface...${NC}"
 
-# If still empty, try from network interface
+# Get IP from default route interface
+DEFAULT_IF=$(ip route | grep default | awk '{print $5}' | head -1)
+VPS_IP=""
+
+if [ -n "$DEFAULT_IF" ]; then
+    VPS_IP=$(ip -4 addr show "$DEFAULT_IF" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
+fi
+
+# If still empty, try all interfaces (excluding loopback)
 if [ -z "$VPS_IP" ]; then
-    # Try to get IP from default route interface
-    DEFAULT_IF=$(ip route | grep default | awk '{print $5}' | head -1)
-    if [ -n "$DEFAULT_IF" ]; then
-        VPS_IP=$(ip -4 addr show "$DEFAULT_IF" 2>/dev/null | grep -oE 'inet [0-9.]+' | awk '{print $2}' | head -1)
-    fi
+    VPS_IP=$(ip -4 addr show | grep -oP 'inet \K[\d.]+' | grep -v '^127\.' | head -1)
 fi
 
 # Validate IP format
-if [ -n "$VPS_IP" ]; then
-    if ! echo "$VPS_IP" | grep -qE '^([0-9]{1,3}\.){3}[0-9]{1,3}$'; then
-        VPS_IP=""
-    fi
+if [ -z "$VPS_IP" ] || ! echo "$VPS_IP" | grep -qE '^([0-9]{1,3}\.){3}[0-9]{1,3}$'; then
+    echo -e "${RED}❌ Failed to detect VPS IP from network interface${NC}"
+    echo ""
+    echo "Please check your network configuration:"
+    echo "  ip addr show"
+    echo "  ip route"
+    echo ""
+    exit 1
 fi
 
-if [ -z "$VPS_IP" ]; then
-    echo -e "${YELLOW}⚠ Could not auto-detect VPS IP${NC}"
-    read -p "Enter your VPS IP (IPv4) manually: " VPS_IP
-    if [ -z "$VPS_IP" ]; then
-        echo -e "${RED}❌ VPS IP is required${NC}"
-        exit 1
-    fi
-    # Validate manual entry
-    if ! echo "$VPS_IP" | grep -qE '^([0-9]{1,3}\.){3}[0-9]{1,3}$'; then
-        echo -e "${RED}❌ Invalid IP address format!${NC}"
-        exit 1
-    fi
-else
-    echo -e "${GREEN}✅ Auto-detected VPS IP: $VPS_IP${NC}"
-fi
+echo -e "${GREEN}✅ Detected VPS IP: $VPS_IP${NC}"
 
 echo ""
 echo ""
@@ -309,13 +295,22 @@ fi
 echo ""
 echo -e "${YELLOW}Verifying DNS resolution...${NC}"
 DISCORD_DNS=$(timeout 3 dig @127.0.0.1 discord.com +short 2>/dev/null | head -1 || echo "FAILED")
-ACTIVISION_DNS=$(timeout 3 dig @127.0.0.1 activision.com +short 2>/dev/null | head -1 || echo "FAILED")
+XBOX_DNS=$(timeout 3 dig @127.0.0.1 xboxlive.com +short 2>/dev/null | head -1 || echo "FAILED")
+ACTIVISION_DNS=$(timeout 3 dig @127.0.0.1 activision.com +short 2>/dev/null | head -1 || echo "TIMEOUT")
 
-echo "  discord.com → $DISCORD_DNS"
-echo "  activision.com → $ACTIVISION_DNS"
+echo "  discord.com → $DISCORD_DNS (should be $VPS_IP)"
+echo "  xboxlive.com → $XBOX_DNS (should be $VPS_IP)"
+echo "  activision.com → $ACTIVISION_DNS (should NOT be $VPS_IP)"
 
-if [ "$DISCORD_DNS" == "$VPS_IP" ] && [ "$ACTIVISION_DNS" == "$VPS_IP" ]; then
-    echo -e "${GREEN}✅ DNS resolution working correctly!${NC}"
+if [ "$DISCORD_DNS" == "$VPS_IP" ] && [ "$XBOX_DNS" == "$VPS_IP" ]; then
+    if [ "$ACTIVISION_DNS" != "$VPS_IP" ]; then
+        echo -e "${GREEN}✅ DNS resolution working correctly!${NC}"
+        echo "   - Discord/Xbox route via VPS ✓"
+        echo "   - Call of Duty routes directly ✓"
+    else
+        echo -e "${RED}❌ Call of Duty is routing to VPS (will cause timeouts)${NC}"
+        echo "   Run: bash scripts/maintenance/fix-cod-disconnects.sh"
+    fi
 else
     echo -e "${YELLOW}⚠ DNS may need a moment to update${NC}"
     echo "   Try: dig @127.0.0.1 discord.com"
@@ -329,7 +324,12 @@ echo ""
 echo "Next steps:"
 echo "1. Test DNS: dig @127.0.0.1 discord.com"
 echo "2. Restart your router to clear DNS cache"
-echo "3. Test Discord and Activision games"
+echo "3. Test Xbox and Discord services"
+echo ""
+echo "⚠️  IMPORTANT - Call of Duty:"
+echo "   - Call of Duty domains are NOT in hosts file (intentional)"
+echo "   - CoD games connect DIRECTLY (not via VPS)"
+echo "   - This prevents 'lost connection to host/server' timeouts"
 echo ""
 echo "⚠️  IMPORTANT for Xbox NAT Detection:"
 echo "   - Ensure Xbox DNS is set to VPS IP: $VPS_IP"
