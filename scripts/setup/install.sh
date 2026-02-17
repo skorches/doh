@@ -460,52 +460,6 @@ $VPS_IP images-ext-1.discordapp.net
 $VPS_IP images-ext-2.discordapp.net
 $VPS_IP media.discordapp.com
 
-# === WHATSAPP ===
-$VPS_IP whatsapp.com
-$VPS_IP www.whatsapp.com
-$VPS_IP web.whatsapp.com
-$VPS_IP whatsapp.net
-$VPS_IP v.whatsapp.net
-$VPS_IP static.whatsapp.net
-$VPS_IP mmg.whatsapp.net
-$VPS_IP pps.whatsapp.net
-$VPS_IP faq.whatsapp.com
-
-# === TELEGRAM ===
-$VPS_IP telegram.org
-$VPS_IP www.telegram.org
-$VPS_IP t.me
-$VPS_IP telegram.me
-$VPS_IP core.telegram.org
-$VPS_IP web.telegram.org
-$VPS_IP desktop.telegram.org
-$VPS_IP api.telegram.org
-$VPS_IP my.telegram.org
-
-# === TWITTER / X ===
-$VPS_IP twitter.com
-$VPS_IP www.twitter.com
-$VPS_IP x.com
-$VPS_IP www.x.com
-$VPS_IP api.twitter.com
-$VPS_IP abs.twimg.com
-$VPS_IP pbs.twimg.com
-$VPS_IP video.twimg.com
-$VPS_IP twimg.com
-$VPS_IP t.co
-$VPS_IP pic.twitter.com
-$VPS_IP upload.twitter.com
-
-# === INSTAGRAM ===
-$VPS_IP instagram.com
-$VPS_IP www.instagram.com
-$VPS_IP i.instagram.com
-$VPS_IP graph.instagram.com
-$VPS_IP cdninstagram.com
-$VPS_IP scontent.cdninstagram.com
-$VPS_IP ig.me
-$VPS_IP static.cdninstagram.com
-
 # === GAME PUBLISHERS ===
 # Activision / Call of Duty
 # NOTE: ALL Call of Duty domains REMOVED - they cause disconnections/timeouts when routed through VPS
@@ -801,27 +755,6 @@ table https_hosts {
     .*\.discordapp\.net$ *
     .*\.discord\.gg$ *
     .*\.discord\.media$ *
-    
-    # WhatsApp domains
-    .*\.whatsapp\.com$ *
-    .*\.whatsapp\.net$ *
-    
-    # Telegram domains
-    .*\.telegram\.org$ *
-    .*\.telegram\.me$ *
-    .*\.t\.me$ *
-    
-    # Twitter / X domains
-    .*\.twitter\.com$ *
-    .*\.x\.com$ *
-    .*\.twimg\.com$ *
-    .*\.t\.co$ *
-    
-    # Instagram domains
-    .*\.instagram\.com$ *
-    .*\.cdninstagram\.com$ *
-    .*\.ig\.me$ *
-    .*\.igsonar\.com$ *
     
     # Game Publisher domains
     # Activision / Call of Duty - REMOVED (causes disconnections when proxied)
