@@ -36,19 +36,24 @@ cp docker-compose.yml "$BACKUP_DIR/" 2>/dev/null || true
 echo -e "${GREEN}✅ Backup created: $BACKUP_DIR${NC}"
 echo ""
 
-# Auto-detect VPS IP from local network interface
-echo -e "${YELLOW}[2/7] Detecting VPS IP address from network interface...${NC}"
-DEFAULT_IF=$(ip route | grep default | awk '{print $5}' | head -1)
+# Detect VPS IP (priority: .env file > network interface)
+echo -e "${YELLOW}[2/7] Detecting VPS IP address...${NC}"
 VPS_IP=""
-if [ -n "$DEFAULT_IF" ]; then
-    VPS_IP=$(ip -4 addr show "$DEFAULT_IF" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
+if [ -f ".env" ]; then
+    source .env
+fi
+if [ -z "$VPS_IP" ]; then
+    DEFAULT_IF=$(ip route | grep default | awk '{print $5}' | head -1)
+    if [ -n "$DEFAULT_IF" ]; then
+        VPS_IP=$(ip -4 addr show "$DEFAULT_IF" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
+    fi
 fi
 if [ -z "$VPS_IP" ]; then
     VPS_IP=$(ip -4 addr show | grep -oP 'inet \K[\d.]+' | grep -v '^127\.' | head -1)
 fi
 
 if [ -z "$VPS_IP" ]; then
-    echo -e "${RED}❌ Could not detect VPS IP from network interface${NC}"
+    echo -e "${RED}❌ Could not detect VPS IP${NC}"
     exit 1
 fi
 echo -e "${GREEN}✅ VPS IP: $VPS_IP${NC}"
@@ -76,8 +81,14 @@ else
 fi
 echo ""
 
-# Update hosts file with new domains
+# Update hosts file from template
 echo -e "${YELLOW}[4/7] Updating hosts file with latest domains...${NC}"
+if [ -f "coredns/xbox-hosts.template" ]; then
+    sed -e "s/__VPS_IP__/$VPS_IP/g" -e "s/__DATE__/$(date)/g" coredns/xbox-hosts.template > coredns/xbox-hosts
+    DOMAIN_COUNT=$(grep -c "^$VPS_IP" coredns/xbox-hosts)
+    echo -e "${GREEN}✅ Hosts file updated from template with $DOMAIN_COUNT domains${NC}"
+else
+    echo -e "${YELLOW}⚠ Template not found, generating hosts file inline...${NC}"
 cat > coredns/xbox-hosts << EOFHOSTS
 # Auto-generated Xbox/Gaming DNS hosts file
 # Last updated: $(date)
@@ -267,6 +278,7 @@ EOFHOSTS
 
 DOMAIN_COUNT=$(grep -c "^$VPS_IP" coredns/xbox-hosts)
 echo -e "${GREEN}✅ Hosts file updated with $DOMAIN_COUNT domains${NC}"
+fi
 echo ""
 
 # Update Corefile if needed
@@ -285,12 +297,12 @@ if ! grep -q "cache 86400" coredns/Corefile 2>/dev/null; then
     
     # Forward with parallel upstreams and fast fail settings
     # max_fails and health_check prevent long timeouts when port 53 is blocked
-    # except directive ensures hosts file domains NEVER go to upstream
+    # NOTE: hosts plugin with fallthrough already handles domain resolution
+    # Domains in hosts file are returned by hosts plugin, not forwarded upstream
     forward . 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 {
         max_concurrent 1000
         max_fails 1
         health_check 5s
-        except /etc/coredns/xbox-hosts
     }
     
     # Enable caching (24-hour cache for maximum stability)
@@ -368,7 +380,7 @@ echo "Update Complete!"
 echo "================================================"
 echo ""
 echo "Changes applied:"
-echo "  • Hosts file updated to 135 domains"
+echo "  • Hosts file updated with latest domains"
 echo "  • CoreDNS cache set to 24 hours"
 echo "  • Fast-fail upstream settings enabled"
 echo "  • DoH backend timeout increased to 10s"

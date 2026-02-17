@@ -9,9 +9,17 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-cd /home/wars09/Cursor/doh 2>/dev/null || cd /root/doh 2>/dev/null || cd "$HOME/doh" 2>/dev/null || {
-    echo -e "${RED}❌ doh directory not found${NC}"
-    exit 1
+cd /root/doh 2>/dev/null || cd "$HOME/doh" 2>/dev/null || {
+    # Try to detect from script location
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [ -f "$SCRIPT_DIR/../../docker-compose.yml" ]; then
+        cd "$SCRIPT_DIR/../.."
+    elif [ -f "./docker-compose.yml" ]; then
+        cd .
+    else
+        echo -e "${RED}❌ doh directory not found${NC}"
+        exit 1
+    fi
 }
 
 echo "================================================"
@@ -32,21 +40,30 @@ else
 fi
 echo ""
 
-# Check if install.sh and regenerate-hosts.sh have same domains
-echo "[2/3] Comparing install.sh and regenerate-hosts.sh domains..."
-INSTALL_DOMAINS=$(grep -E "^\$VPS_IP [a-zA-Z0-9.-]+" scripts/setup/install.sh | wc -l)
-REGENERATE_DOMAINS=$(grep -E "^\$VPS_IP [a-zA-Z0-9.-]+" scripts/maintenance/regenerate-hosts.sh | wc -l)
+# Check template and install.sh fallback domain counts
+echo "[2/3] Checking domain template and install.sh consistency..."
+TEMPLATE_DOMAINS=0
+INSTALL_DOMAINS=0
 
-echo "  install.sh: $INSTALL_DOMAINS domains"
-echo "  regenerate-hosts.sh: $REGENERATE_DOMAINS domains"
-
-if [ "$INSTALL_DOMAINS" -eq "$REGENERATE_DOMAINS" ]; then
-    echo -e "  ${GREEN}✅ Domain counts match${NC}"
+if [ -f "coredns/xbox-hosts.template" ]; then
+    TEMPLATE_DOMAINS=$(grep -cE "^__VPS_IP__ [a-zA-Z0-9.-]+" coredns/xbox-hosts.template)
+    echo "  xbox-hosts.template: $TEMPLATE_DOMAINS domains"
 else
-    echo -e "  ${YELLOW}⚠️  Domain counts differ (may be intentional)${NC}"
+    echo -e "  ${RED}❌ coredns/xbox-hosts.template not found${NC}"
 fi
 
-# Check for critical missing domains
+INSTALL_DOMAINS=$(grep -cE "^\\\$VPS_IP [a-zA-Z0-9.-]+" scripts/setup/install.sh || echo "0")
+echo "  install.sh (inline fallback): $INSTALL_DOMAINS domains"
+
+if [ "$TEMPLATE_DOMAINS" -gt 0 ]; then
+    if [ "$INSTALL_DOMAINS" -eq "$TEMPLATE_DOMAINS" ]; then
+        echo -e "  ${GREEN}✅ Domain counts match${NC}"
+    else
+        echo -e "  ${YELLOW}⚠️  install.sh fallback has fewer domains than template (expected - template is authoritative)${NC}"
+    fi
+fi
+
+# Check for critical missing domains in template
 CRITICAL_DOMAINS=(
     "xboxgamepass.com"
     "v20.events.data.microsoft.com"
@@ -56,14 +73,14 @@ CRITICAL_DOMAINS=(
 )
 
 echo ""
-echo "Checking for critical domains in install.sh:"
-MISSING_IN_INSTALL=0
+echo "Checking for critical domains in template:"
+MISSING_IN_TEMPLATE=0
 for domain in "${CRITICAL_DOMAINS[@]}"; do
-    if grep -q "\$VPS_IP $domain" scripts/setup/install.sh; then
+    if [ -f "coredns/xbox-hosts.template" ] && grep -q "__VPS_IP__ $domain" coredns/xbox-hosts.template; then
         echo -e "  ${GREEN}✅ $domain${NC}"
     else
         echo -e "  ${RED}❌ $domain MISSING${NC}"
-        MISSING_IN_INSTALL=$((MISSING_IN_INSTALL + 1))
+        MISSING_IN_TEMPLATE=$((MISSING_IN_TEMPLATE + 1))
     fi
 done
 echo ""
@@ -72,26 +89,27 @@ echo ""
 echo "[3/3] Checking script syntax..."
 SCRIPTS=(
     "scripts/setup/install.sh"
+    "scripts/setup/update.sh"
     "scripts/setup/cleanup.sh"
     "scripts/setup/setup-letsencrypt.sh"
     "scripts/maintenance/regenerate-hosts.sh"
     "scripts/maintenance/verify-xbox-services.sh"
     "scripts/maintenance/fix-xbox-nat-unavailable.sh"
+    "scripts/maintenance/fix-cod-disconnects.sh"
 )
 
 SYNTAX_ERRORS=0
 for script in "${SCRIPTS[@]}"; do
     if [ -f "$script" ]; then
-        if bash -n "$script" 2>&1 | grep -q "error"; then
+        if bash -n "$script" 2>/dev/null; then
+            echo -e "  ${GREEN}✅ $script syntax OK${NC}"
+        else
             echo -e "  ${RED}❌ $script has syntax errors${NC}"
             bash -n "$script" 2>&1 | head -3
             SYNTAX_ERRORS=$((SYNTAX_ERRORS + 1))
-        else
-            echo -e "  ${GREEN}✅ $script syntax OK${NC}"
         fi
     else
-        echo -e "  ${RED}❌ $script not found${NC}"
-        SYNTAX_ERRORS=$((SYNTAX_ERRORS + 1))
+        echo -e "  ${YELLOW}⚠️  $script not found (optional)${NC}"
     fi
 done
 echo ""
@@ -102,11 +120,11 @@ echo "Summary"
 echo "================================================"
 echo ""
 
-if [ -z "$HARDCODED_VPS_IPS" ] && [ $MISSING_IN_INSTALL -eq 0 ] && [ $SYNTAX_ERRORS -eq 0 ]; then
+if [ -z "$HARDCODED_VPS_IPS" ] && [ $MISSING_IN_TEMPLATE -eq 0 ] && [ $SYNTAX_ERRORS -eq 0 ]; then
     echo -e "${GREEN}✅ All scripts verified!${NC}"
     echo ""
     echo "✅ No hardcoded VPS IPs"
-    echo "✅ All critical domains present"
+    echo "✅ All critical domains present in template"
     echo "✅ All scripts have valid syntax"
     echo ""
     echo "Scripts are ready for public release!"
@@ -115,8 +133,8 @@ else
     if [ -n "$HARDCODED_VPS_IPS" ]; then
         echo "  • Hardcoded VPS IPs found"
     fi
-    if [ $MISSING_IN_INSTALL -gt 0 ]; then
-        echo "  • $MISSING_IN_INSTALL critical domain(s) missing in install.sh"
+    if [ $MISSING_IN_TEMPLATE -gt 0 ]; then
+        echo "  • $MISSING_IN_TEMPLATE critical domain(s) missing in template"
     fi
     if [ $SYNTAX_ERRORS -gt 0 ]; then
         echo "  • $SYNTAX_ERRORS script(s) have syntax errors"

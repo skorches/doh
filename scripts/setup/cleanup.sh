@@ -34,9 +34,16 @@ fi
 
 echo ""
 echo "[1/6] Stopping all Docker containers..."
-cd /root/doh 2>/dev/null || cd "$HOME/doh" 2>/dev/null || {
+# Find project directory
+if [ -f "docker-compose.yml" ]; then
+    : # already in correct directory
+elif [ -d "/root/doh" ] && [ -f "/root/doh/docker-compose.yml" ]; then
+    cd /root/doh
+elif [ -d "$HOME/doh" ] && [ -f "$HOME/doh/docker-compose.yml" ]; then
+    cd "$HOME/doh"
+else
     echo -e "${YELLOW}⚠️  doh directory not found, checking for containers...${NC}"
-}
+fi
 
 docker compose down 2>/dev/null || docker-compose down 2>/dev/null || true
 docker stop coredns-smartdns doh-nginx doh-backend 2>/dev/null || true
@@ -57,13 +64,27 @@ echo -e "${GREEN}✅ SNIProxy removed${NC}"
 echo ""
 
 echo "[4/6] Removing configuration files..."
+PROJECT_DIR=""
 if [ -d "/root/doh" ]; then
-    cd /root/doh
-    rm -rf coredns/* nginx/* ssl/* 2>/dev/null || true
+    PROJECT_DIR="/root/doh"
+elif [ -d "$HOME/doh" ]; then
+    PROJECT_DIR="$HOME/doh"
+elif [ -f "docker-compose.yml" ]; then
+    PROJECT_DIR="$(pwd)"
+fi
+
+if [ -n "$PROJECT_DIR" ]; then
+    cd "$PROJECT_DIR"
+    # Preserve template files for reinstallation
+    echo "  Preserving template files..."
+    rm -f coredns/xbox-hosts 2>/dev/null || true
+    rm -f coredns/xbox-hosts.backup.* 2>/dev/null || true
+    rm -rf nginx/* ssl/* 2>/dev/null || true
     rm -f docker-compose.yml 2>/dev/null || true
-    echo -e "${GREEN}✅ Configuration files removed${NC}"
+    rm -f .env 2>/dev/null || true
+    echo -e "${GREEN}✅ Configuration files removed (template preserved)${NC}"
 else
-    echo -e "${YELLOW}⚠️  /root/doh not found, skipping file removal${NC}"
+    echo -e "${YELLOW}⚠️  Project directory not found, skipping file removal${NC}"
 fi
 echo ""
 
@@ -155,7 +176,7 @@ echo ""
 echo "All DoH/Smart DNS setup has been removed."
 echo ""
 echo "To reinstall from scratch:"
-echo "  1. cd /root/doh"
+echo "  1. cd to your doh directory"
 echo "  2. git pull origin main  # Get latest code"
 echo "  3. bash scripts/setup/install.sh"
 echo ""

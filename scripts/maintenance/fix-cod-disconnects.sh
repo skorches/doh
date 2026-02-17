@@ -30,12 +30,24 @@ echo "================================================"
 echo "Fixing Call of Duty Disconnections"
 echo "================================================"
 echo ""
+echo "NOTE: The xbox-hosts.template already excludes CoD domains."
+echo "This script fixes the generated hosts file if CoD domains"
+echo "were added manually or from an older version."
+echo ""
+echo "To permanently fix, just regenerate from template:"
+echo "  bash scripts/maintenance/regenerate-hosts.sh"
+echo ""
 
-# Get VPS IP from local network interface
-DEFAULT_IF=$(ip route | grep default | awk '{print $5}' | head -1)
+# Get VPS IP (priority: .env > network interface)
 VPS_IP=""
-if [ -n "$DEFAULT_IF" ]; then
-    VPS_IP=$(ip -4 addr show "$DEFAULT_IF" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
+if [ -f "$PROJECT_ROOT/.env" ]; then
+    source "$PROJECT_ROOT/.env"
+fi
+if [ -z "$VPS_IP" ]; then
+    DEFAULT_IF=$(ip route | grep default | awk '{print $5}' | head -1)
+    if [ -n "$DEFAULT_IF" ]; then
+        VPS_IP=$(ip -4 addr show "$DEFAULT_IF" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
+    fi
 fi
 if [ -z "$VPS_IP" ]; then
     VPS_IP=$(ip -4 addr show | grep -oP 'inet \K[\d.]+' | grep -v '^127\.' | head -1)

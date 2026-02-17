@@ -118,8 +118,14 @@ fi
 echo -e "${GREEN}✅ All prerequisites OK${NC}"
 echo ""
 
-# Get configuration
-INSTALL_DIR="/root/doh"
+# Determine installation directory
+if [ -f "docker-compose.yml" ]; then
+    INSTALL_DIR="$(pwd)"
+elif [ -f "../../docker-compose.yml" ]; then
+    INSTALL_DIR="$(cd ../.. && pwd)"
+else
+    INSTALL_DIR="/root/doh"
+fi
 mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 
@@ -317,12 +323,12 @@ cat > coredns/Corefile << 'EOFCORE'
     
     # Forward with parallel upstreams and fast fail settings
     # max_fails and health_check prevent long timeouts when port 53 is blocked
-    # except directive ensures hosts file domains NEVER go to upstream
+    # NOTE: hosts plugin with fallthrough already handles domain resolution
+    # Domains in hosts file are returned by hosts plugin, not forwarded upstream
     forward . 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 {
         max_concurrent 1000
         max_fails 1
         health_check 5s
-        except /etc/coredns/xbox-hosts
     }
     
     # Enable caching (24-hour cache for maximum stability)
@@ -916,6 +922,8 @@ echo ""
 echo -e "${YELLOW}Configuring firewall...${NC}"
 ufw allow 80/tcp comment "HTTP" 2>/dev/null || true
 ufw allow 443/tcp comment "HTTPS/DoH/Xbox" 2>/dev/null || true
+ufw allow 53/tcp comment "DNS TCP" 2>/dev/null || true
+ufw allow 53/udp comment "DNS UDP" 2>/dev/null || true
 ufw allow 3074/tcp comment "Xbox Live" 2>/dev/null || true
 ufw allow 3074/udp comment "Xbox Live UDP" 2>/dev/null || true
 

@@ -9,12 +9,12 @@
     
     # Forward with parallel upstreams and fast fail settings
     # max_fails and health_check prevent long timeouts when port 53 is blocked
-    # except directive ensures hosts file domains NEVER go to upstream
+    # NOTE: hosts plugin with fallthrough already handles domain resolution
+    # Domains in hosts file are returned by hosts plugin, not forwarded upstream
     forward . 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 {
         max_concurrent 1000
         max_fails 1
         health_check 5s
-        except /etc/coredns/xbox-hosts
     }
     
     # Enable caching (very long cache to prevent upstream timeouts)

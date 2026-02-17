@@ -19,11 +19,18 @@ echo "Fixing Xbox NAT Unavailable Issue"
 echo "================================================"
 echo ""
 
-# Get VPS IP from local network interface
-DEFAULT_IF=$(ip route | grep default | awk '{print $5}' | head -1)
+# Get VPS IP (priority: .env > network interface)
 VPS_IP=""
-if [ -n "$DEFAULT_IF" ]; then
-    VPS_IP=$(ip -4 addr show "$DEFAULT_IF" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
+if [ -f ".env" ]; then
+    source .env
+elif [ -f "$HOME/doh/.env" ]; then
+    source "$HOME/doh/.env"
+fi
+if [ -z "$VPS_IP" ]; then
+    DEFAULT_IF=$(ip route | grep default | awk '{print $5}' | head -1)
+    if [ -n "$DEFAULT_IF" ]; then
+        VPS_IP=$(ip -4 addr show "$DEFAULT_IF" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
+    fi
 fi
 if [ -z "$VPS_IP" ]; then
     VPS_IP=$(ip -4 addr show | grep -oP 'inet \K[\d.]+' | grep -v '^127\.' | head -1)
@@ -50,15 +57,20 @@ TEREDO_DOMAIN="teredo.ipv6.microsoft.com"
 
 # Find doh directory
 DOH_DIR=""
-if [ -d "/root/doh" ]; then
-    DOH_DIR="/root/doh"
-elif [ -d "$HOME/doh" ]; then
-    DOH_DIR="$HOME/doh"
-elif [ -d "." ] && [ -f "docker-compose.yml" ]; then
+if [ -f "docker-compose.yml" ]; then
     DOH_DIR="."
+elif [ -d "/root/doh" ] && [ -f "/root/doh/docker-compose.yml" ]; then
+    DOH_DIR="/root/doh"
+elif [ -d "$HOME/doh" ] && [ -f "$HOME/doh/docker-compose.yml" ]; then
+    DOH_DIR="$HOME/doh"
 else
-    echo -e "${RED}❌ doh directory not found${NC}"
-    exit 1
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [ -f "$SCRIPT_DIR/../../docker-compose.yml" ]; then
+        DOH_DIR="$SCRIPT_DIR/../.."
+    else
+        echo -e "${RED}❌ doh directory not found${NC}"
+        exit 1
+    fi
 fi
 
 cd "$DOH_DIR"
@@ -96,10 +108,18 @@ done
 echo -e "${GREEN}✅ All NAT domains added${NC}"
 echo ""
 
-echo "[4/6] Updating all IPs in hosts file to current VPS IP..."
-# Update all IP addresses to current VPS IP
-sed -i "s/^[0-9][0-9.]*/$VPS_IP/" "$HOSTS_FILE"
-echo -e "${GREEN}✅ All IPs updated to $VPS_IP${NC}"
+echo "[4/6] Regenerating hosts file from template (if available)..."
+if [ -f "coredns/xbox-hosts.template" ]; then
+    # Regenerate from template to ensure all IPs are correct
+    sed -e "s/__VPS_IP__/$VPS_IP/g" -e "s/__DATE__/$(date)/g" coredns/xbox-hosts.template > "$HOSTS_FILE"
+    echo -e "${GREEN}✅ Hosts file regenerated from template with correct VPS IP ($VPS_IP)${NC}"
+else
+    # Fallback: update only lines that have wrong IPs
+    echo "No template found, updating existing entries..."
+    # Only update lines that start with an IP (domain entries), not comments
+    sed -i "s/^[0-9][0-9.]*\([ \t]\)/$VPS_IP\1/" "$HOSTS_FILE"
+    echo -e "${GREEN}✅ All IPs updated to $VPS_IP${NC}"
+fi
 echo ""
 
 echo "[5/6] Verifying hosts file..."

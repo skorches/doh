@@ -15,16 +15,33 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-cd /root/doh 2>/dev/null || cd "$HOME/doh" 2>/dev/null || {
-    echo -e "${RED}❌ doh directory not found${NC}"
-    exit 1
-}
+# Find project directory
+if [ -f "docker-compose.yml" ]; then
+    : # already in correct directory
+elif [ -d "/root/doh" ] && [ -f "/root/doh/docker-compose.yml" ]; then
+    cd /root/doh
+elif [ -d "$HOME/doh" ] && [ -f "$HOME/doh/docker-compose.yml" ]; then
+    cd "$HOME/doh"
+else
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [ -f "$SCRIPT_DIR/../../docker-compose.yml" ]; then
+        cd "$SCRIPT_DIR/../.."
+    else
+        echo -e "${RED}❌ doh directory not found${NC}"
+        exit 1
+    fi
+fi
 
-# Get VPS IP from local network interface
-DEFAULT_IF=$(ip route | grep default | awk '{print $5}' | head -1)
+# Get VPS IP (priority: .env file > network interface)
 VPS_IP=""
-if [ -n "$DEFAULT_IF" ]; then
-    VPS_IP=$(ip -4 addr show "$DEFAULT_IF" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
+if [ -f ".env" ]; then
+    source .env
+fi
+if [ -z "$VPS_IP" ]; then
+    DEFAULT_IF=$(ip route | grep default | awk '{print $5}' | head -1)
+    if [ -n "$DEFAULT_IF" ]; then
+        VPS_IP=$(ip -4 addr show "$DEFAULT_IF" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
+    fi
 fi
 if [ -z "$VPS_IP" ]; then
     VPS_IP=$(ip -4 addr show | grep -oP 'inet \K[\d.]+' | grep -v '^127\.' | head -1)
@@ -259,14 +276,14 @@ done
 echo ""
 
 # Quick domain check (minimal version of verify-all-domains.sh)
-echo "[9/9] Quick Domain Check..."
+echo "[9/10] Quick Domain Check..."
 HOSTS_FILE="coredns/xbox-hosts"
 if [ -f "$HOSTS_FILE" ]; then
     TOTAL_DOMAINS=$(grep -c "^[0-9]" "$HOSTS_FILE" 2>/dev/null || echo "0")
     echo -e "  ${GREEN}✅ Hosts file has $TOTAL_DOMAINS domain entries${NC}"
     
     # Check a few critical domains
-    CRITICAL_DOMAINS=("xboxlive.com" "xbox.com" "discord.com" "activision.com" "ea.com")
+    CRITICAL_DOMAINS=("xboxlive.com" "xbox.com" "discord.com" "ea.com" "epicgames.com")
     MISSING_CRITICAL=0
     for domain in "${CRITICAL_DOMAINS[@]}"; do
         if ! grep -q "^[0-9].*$domain" "$HOSTS_FILE"; then
