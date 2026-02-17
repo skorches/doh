@@ -1,125 +1,13 @@
-# Essential Xbox Smart DNS Hosts
-# VPS IP: 91.235.234.92
-# Generated: $(date)
-
-# === XBOX CORE ===
-91.235.234.92 xboxlive.com
-91.235.234.92 www.xboxlive.com
-91.235.234.92 notify.xboxlive.com
-91.235.234.92 xnotify.xboxlive.com
-91.235.234.92 cert.mgt.xboxlive.com
-91.235.234.92 xccs.xboxlive.com
-91.235.234.92 settings.xboxlive.com
-91.235.234.92 profile.xboxlive.com
-
-# === XBOX AUTHENTICATION ===
-91.235.234.92 login.live.com
-91.235.234.92 account.microsoft.com
-91.235.234.92 login.microsoftonline.com
-91.235.234.92 auth.xboxlive.com
-91.235.234.92 user.auth.xboxlive.com
-91.235.234.92 xsts.auth.xboxlive.com
-
-# === XBOX SERVICES ===
-91.235.234.92 xboxservices.com
-91.235.234.92 www.xboxservices.com
-91.235.234.92 xbox.com
-91.235.234.92 www.xbox.com
-91.235.234.92 live.com
-91.235.234.92 www.live.com
-91.235.234.92 microsoft.com
-91.235.234.92 www.microsoft.com
-91.235.234.92 microsoftonline.com
-91.235.234.92 msftncsi.com
-91.235.234.92 msftconnecttest.com
-91.235.234.92 windows.com
-91.235.234.92 msn.com
-91.235.234.92 gamepass.com
-91.235.234.92 www.gamepass.com
-
-# === DISCORD ===
-91.235.234.92 discord.com
-91.235.234.92 www.discord.com
-91.235.234.92 gateway.discord.gg
-91.235.234.92 cdn.discordapp.com
-91.235.234.92 media.discordapp.net
-91.235.234.92 discord.gg
-91.235.234.92 discordapp.com
-91.235.234.92 discordapp.net
-91.235.234.92 discord.media
-91.235.234.92 status.discord.com
-91.235.234.92 api.discord.com
-91.235.234.92 gateway.discord.com
-91.235.234.92 cdn.discord.com
-91.235.234.92 images-ext-1.discordapp.net
-91.235.234.92 images-ext-2.discordapp.net
-91.235.234.92 media.discordapp.com
-
-# === ACTIVISION (Call of Duty, Warzone) ===
-
-# === ELECTRONIC ARTS (Battlefield, FIFA, etc.) ===
-91.235.234.92 ea.com
-91.235.234.92 www.ea.com
-91.235.234.92 easports.com
-91.235.234.92 www.easports.com
-91.235.234.92 eamobile.com
-91.235.234.92 swtor.com
-91.235.234.92 tnt-ea.com
-91.235.234.92 origin.com
-91.235.234.92 www.origin.com
-91.235.234.92 eaplay.com
-
-# === UBISOFT ===
-91.235.234.92 ubisoft.com
-91.235.234.92 www.ubisoft.com
-91.235.234.92 uplay.com
-91.235.234.92 ubisoftconnect.com
-91.235.234.92 ubisoftstore.com
-
-# === EPIC GAMES (Fortnite) ===
-91.235.234.92 epicgames.com
-91.235.234.92 www.epicgames.com
-91.235.234.92 unrealengine.com
-91.235.234.92 fortnite.com
-
-# === ROCKSTAR (GTA Online) ===
-91.235.234.92 rockstargames.com
-91.235.234.92 www.rockstargames.com
-91.235.234.92 socialclub.rockstargames.com
-
-# === 2K GAMES (NBA 2K) ===
-# NOTE: 2K Games domains removed - NBA 2K requires these to resolve to real IPs for matchmaking/CDN
-# Do NOT add: 2k.com, 2ksports.com, take2games.com, or any CDN/matchmaking subdomains
-
-# === BLIZZARD ===
-91.235.234.92 blizzard.com
-91.235.234.92 www.blizzard.com
-91.235.234.92 battle.net
-91.235.234.92 www.battle.net
-
-# === RIOT GAMES ===
-91.235.234.92 riotgames.com
-91.235.234.92 www.riotgames.com
-91.235.234.92 leagueoflegends.com
-91.235.234.92 valorant.com
-
-# === SQUARE ENIX ===
-91.235.234.92 square-enix.com
-91.235.234.92 www.square-enix.com
-91.235.234.92 square-enix-games.com
-
-# === BETHESDA ===
-91.235.234.92 bethesda.net
-91.235.234.92 www.bethesda.net
-91.235.234.92 bethesda.com
-91.235.234.92 www.bethesda.com
-
-# === CD PROJEKT ===
-91.235.234.92 cdprojekt.com
-91.235.234.92 www.cdprojekt.com
-91.235.234.92 gog.com
-91.235.234.92 www.gog.com
-
-# Microsoft licensing and network check domains
-91.235.234.92 licensing.mp.microsoft.com
-91.235.234.92 ipv6.msftncsi.com
+# This file is auto-generated — DO NOT EDIT manually.
+# It will be created by the install script with your VPS IP.
+#
+# To generate this file, run one of:
+#   sudo bash scripts/setup/install.sh
+#   sudo bash scripts/maintenance/regenerate-hosts.sh YOUR_VPS_IP
+#
+# Or set your IP in .env and regenerate:
+#   cp .env.example .env
+#   # Edit .env and set VPS_IP=your.ip.here
+#   sudo bash scripts/maintenance/regenerate-hosts.sh
+#
+# Template: coredns/xbox-hosts.template

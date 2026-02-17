@@ -27,20 +27,23 @@ cd doh
 
 # Run installer
 chmod +x scripts/setup/install.sh
-./scripts/setup/install.sh
+sudo ./scripts/setup/install.sh
 ```
 
 The installer will:
+- Auto-detect your VPS IP address
 - Install Docker and dependencies
-- Set up CoreDNS (Smart DNS)
-- Configure SNIProxy
-- Set up DoH server (Nginx)
+- Generate `coredns/xbox-hosts` from the template with your VPS IP
+- Set up CoreDNS (Smart DNS), SNIProxy, DoH server (Nginx)
 - Generate SSL certificates
-- Configure all game domains
+- Save your config to `.env` for future use
 
 **You'll be asked for:** Your domain name (e.g., `bypass.example.com`)
 
 **Wait 5-10 minutes** - Everything installs automatically!
+
+> **No hardcoded IPs** — the repo ships a template (`coredns/xbox-hosts.template`).  
+> Your actual hosts file is generated at install time and excluded from git.
 
 ### 3. Configure Domain DNS
 
@@ -123,13 +126,16 @@ curl -k -H 'accept: application/dns-json' \
 ```
 doh/
 ├── README.md                 # This file
-├── docker-compose.yml        # Docker services (auto-generated)
+├── docker-compose.yml        # Docker services
+├── .env.example              # Configuration template (copy to .env)
 ├── coredns/
-│   ├── Corefile              # CoreDNS config (auto-generated)
-│   └── xbox-hosts            # Domain mappings (auto-generated)
+│   ├── Corefile              # CoreDNS config
+│   ├── xbox-hosts.template   # Domain mappings template (__VPS_IP__ placeholder)
+│   └── xbox-hosts            # Generated at install (gitignored, has your real IP)
 ├── nginx/
 │   └── conf.d/              # Nginx config (auto-generated)
 └── scripts/
+    ├── common.sh             # Shared utilities
     ├── setup/
     │   ├── install.sh        # Main installer
     │   ├── update.sh         # Update running config
@@ -140,7 +146,7 @@ doh/
         ├── verify-excluded-domains.sh  # Check for excluded domains
         ├── fix-xbox-nat-unavailable.sh # Fix NAT issues
         ├── fix-cod-disconnects.sh      # Fix Call of Duty timeouts
-        ├── regenerate-hosts.sh         # Regenerate hosts file
+        ├── regenerate-hosts.sh         # Regenerate hosts from template
         └── verify-scripts.sh           # Verify script integrity
 ```
 
@@ -211,10 +217,14 @@ doh/
   - ✅ Direct connection ensures: Low latency, stable matchmaking, no disconnects
   - All `activision.com`, `callofduty.com`, `demonware.net` domains excluded
 
-- **NBA 2K** (NBA 2K24, 2K25, etc.)
-  - ❌ Routing via VPS causes: Matchmaking failures, CDN connection issues
+- **NBA 2K / 2K Games** (NBA 2K24, 2K25, WWE 2K, etc.)
+  - ❌ Routing via VPS causes: Matchmaking failures, "Unable to connect to 2K servers"
   - ✅ Direct connection ensures: Proper CDN access, matchmaking works
   - All `2k.com`, `2ksports.com`, `take2games.com` domains excluded
+  - **Why:** 2K uses Akamai/AWS CDNs with geo-located nodes for roster updates, matchmaking,
+    and game assets. Routing through VPS makes the game think you're in the wrong region.
+  - **If your ISP blocks 2K:** You'll need a full VPN (WireGuard/OpenVPN) for 2K games
+    instead of Smart DNS, since all their domains require direct geo-local resolution.
 
 #### Why Some Games Are Excluded:
 
@@ -279,7 +289,12 @@ If your VPS IP changes or you need to update domains:
 
 ```bash
 cd /root/doh
+
+# Auto-detect VPS IP (reads from .env or network interface)
 bash scripts/maintenance/regenerate-hosts.sh
+
+# Or provide your VPS IP directly
+bash scripts/maintenance/regenerate-hosts.sh 1.2.3.4
 ```
 
 ### Fix NAT/Teredo Issues

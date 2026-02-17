@@ -1,6 +1,10 @@
 #!/bin/bash
 
-# Regenerate xbox-hosts file with all domains
+# Regenerate xbox-hosts file from template
+# Usage:
+#   ./scripts/maintenance/regenerate-hosts.sh                 # auto-detect VPS IP
+#   ./scripts/maintenance/regenerate-hosts.sh 1.2.3.4         # provide VPS IP as argument
+#   VPS_IP=1.2.3.4 ./scripts/maintenance/regenerate-hosts.sh  # provide via env var
 
 set -e
 
@@ -39,229 +43,70 @@ fi
 echo -e "${BLUE}Using directory: $DOH_DIR${NC}"
 cd "$DOH_DIR"
 
-# Get VPS IP from local network interface
-echo -e "${YELLOW}Detecting VPS IP from network interface...${NC}"
-
-# Get IP from default route interface
-DEFAULT_IF=$(ip route | grep default | awk '{print $5}' | head -1)
-VPS_IP=""
-
-if [ -n "$DEFAULT_IF" ]; then
-    VPS_IP=$(ip -4 addr show "$DEFAULT_IF" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
+# Determine VPS IP (priority: argument > env var > .env file > auto-detect)
+if [ -n "$1" ]; then
+    VPS_IP="$1"
+    echo -e "${GREEN}Using VPS IP from argument: $VPS_IP${NC}"
+elif [ -n "$VPS_IP" ]; then
+    echo -e "${GREEN}Using VPS IP from environment: $VPS_IP${NC}"
+elif [ -f ".env" ]; then
+    source .env
+    if [ -n "$VPS_IP" ]; then
+        echo -e "${GREEN}Using VPS IP from .env file: $VPS_IP${NC}"
+    fi
 fi
 
-# If still empty, try all interfaces (excluding loopback)
+# If still empty, auto-detect from network interface
 if [ -z "$VPS_IP" ]; then
-    VPS_IP=$(ip -4 addr show | grep -oP 'inet \K[\d.]+' | grep -v '^127\.' | head -1)
+    echo -e "${YELLOW}Detecting VPS IP from network interface...${NC}"
+
+    # Get IP from default route interface
+    DEFAULT_IF=$(ip route | grep default | awk '{print $5}' | head -1)
+
+    if [ -n "$DEFAULT_IF" ]; then
+        VPS_IP=$(ip -4 addr show "$DEFAULT_IF" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
+    fi
+
+    # If still empty, try all interfaces (excluding loopback)
+    if [ -z "$VPS_IP" ]; then
+        VPS_IP=$(ip -4 addr show | grep -oP 'inet \K[\d.]+' | grep -v '^127\.' | head -1)
+    fi
 fi
 
 # Validate IP format
 if [ -z "$VPS_IP" ] || ! echo "$VPS_IP" | grep -qE '^([0-9]{1,3}\.){3}[0-9]{1,3}$'; then
-    echo -e "${RED}❌ Failed to detect VPS IP from network interface${NC}"
+    echo -e "${RED}❌ Failed to detect VPS IP${NC}"
     echo ""
-    echo "Please check your network configuration:"
-    echo "  ip addr show"
-    echo "  ip route"
+    echo "Provide your VPS IP in one of these ways:"
+    echo "  1. As argument:    bash $0 YOUR_VPS_IP"
+    echo "  2. In .env file:   echo 'VPS_IP=YOUR_VPS_IP' > .env"
+    echo "  3. As env var:     VPS_IP=YOUR_VPS_IP bash $0"
     echo ""
     exit 1
 fi
 
-echo -e "${GREEN}✅ Detected VPS IP: $VPS_IP${NC}"
+echo -e "${GREEN}✅ VPS IP: $VPS_IP${NC}"
+echo ""
 
-echo ""
-echo ""
+# Check for template file
+TEMPLATE_FILE="coredns/xbox-hosts.template"
+HOSTS_FILE="coredns/xbox-hosts"
+
+if [ ! -f "$TEMPLATE_FILE" ]; then
+    echo -e "${RED}❌ Template file not found: $TEMPLATE_FILE${NC}"
+    echo "Make sure the template file exists in the coredns directory."
+    exit 1
+fi
 
 # Backup existing file
-HOSTS_FILE="coredns/xbox-hosts"
 if [ -f "$HOSTS_FILE" ]; then
     cp "$HOSTS_FILE" "${HOSTS_FILE}.backup.$(date +%s)"
     echo -e "${GREEN}✅ Backed up existing file${NC}"
 fi
 
-# Generate new hosts file
-echo -e "${YELLOW}Generating new hosts file...${NC}"
-
-cat > "$HOSTS_FILE" << EOFHOSTS
-# Essential Xbox Smart DNS Hosts
-# VPS IP: $VPS_IP
-# Generated: $(date)
-
-# === XBOX CORE ===
-$VPS_IP xboxlive.com
-$VPS_IP www.xboxlive.com
-$VPS_IP notify.xboxlive.com
-$VPS_IP xnotify.xboxlive.com
-$VPS_IP cert.mgt.xboxlive.com
-$VPS_IP xccs.xboxlive.com
-$VPS_IP settings.xboxlive.com
-$VPS_IP profile.xboxlive.com
-
-# === XBOX AUTHENTICATION ===
-$VPS_IP login.live.com
-$VPS_IP account.live.com
-$VPS_IP account.microsoft.com
-$VPS_IP login.microsoftonline.com
-$VPS_IP auth.xboxlive.com
-$VPS_IP user.auth.xboxlive.com
-$VPS_IP device.auth.xboxlive.com
-$VPS_IP title.auth.xboxlive.com
-$VPS_IP xsts.auth.xboxlive.com
-$VPS_IP sisu.xboxlive.com
-
-# === XBOX SERVICES ===
-$VPS_IP xboxservices.com
-$VPS_IP www.xboxservices.com
-$VPS_IP xbox.com
-$VPS_IP www.xbox.com
-$VPS_IP activity.xboxservices.com
-$VPS_IP contentaccess.xboxservices.com
-$VPS_IP contentaccess.exp.xboxservices.com
-$VPS_IP licensing.xboxservices.com
-$VPS_IP live.com
-$VPS_IP www.live.com
-$VPS_IP microsoft.com
-$VPS_IP www.microsoft.com
-$VPS_IP microsoftonline.com
-$VPS_IP msftncsi.com
-$VPS_IP msftconnecttest.com
-$VPS_IP windows.com
-$VPS_IP msn.com
-$VPS_IP gamepass.com
-$VPS_IP www.gamepass.com
-$VPS_IP xboxgamepass.com
-$VPS_IP catalog.xboxservices.com
-$VPS_IP catalog.gamepass.com
-
-# === MICROSOFT NETWORK CHECKS (NAT Detection) ===
-# CRITICAL: These domains are required for Xbox NAT type detection
-# Missing any of these will cause "NAT unavailable" errors
-$VPS_IP dns.msftncsi.com
-$VPS_IP www.msftncsi.com
-$VPS_IP ipv6.msftncsi.com
-$VPS_IP www.msftconnecttest.com
-$VPS_IP ipv4.msftconnecttest.com
-$VPS_IP ipv6.msftconnecttest.com
-
-# === DISCORD ===
-$VPS_IP discord.com
-$VPS_IP www.discord.com
-$VPS_IP gateway.discord.gg
-$VPS_IP cdn.discordapp.com
-$VPS_IP media.discordapp.net
-$VPS_IP discord.gg
-$VPS_IP discordapp.com
-$VPS_IP discordapp.net
-$VPS_IP discord.media
-$VPS_IP status.discord.com
-$VPS_IP api.discord.com
-$VPS_IP gateway.discord.com
-$VPS_IP cdn.discord.com
-$VPS_IP images-ext-1.discordapp.net
-$VPS_IP images-ext-2.discordapp.net
-$VPS_IP media.discordapp.com
-
-# === ACTIVISION / CALL OF DUTY ===
-# NOTE: Call of Duty domains REMOVED - they cause disconnections/timeouts when routed through VPS
-# CoD games need DIRECT, LOW-LATENCY connections to:
-#   - Matchmaking servers (demonware)
-#   - Game servers
-#   - CDN servers (asset delivery)
-# Routing through VPS causes: "Lost connection to host/server", timeouts, matchmaking failures
-# Do NOT add: activision.com, callofduty.com, or ANY CoD/Activision subdomains
-
-# === ELECTRONIC ARTS (Battlefield, FIFA, etc.) ===
-$VPS_IP ea.com
-$VPS_IP www.ea.com
-$VPS_IP easports.com
-$VPS_IP www.easports.com
-$VPS_IP eamobile.com
-$VPS_IP swtor.com
-$VPS_IP tnt-ea.com
-$VPS_IP origin.com
-$VPS_IP www.origin.com
-$VPS_IP eaplay.com
-
-# === UBISOFT ===
-$VPS_IP ubisoft.com
-$VPS_IP www.ubisoft.com
-$VPS_IP uplay.com
-$VPS_IP ubisoftconnect.com
-$VPS_IP ubisoftstore.com
-
-# === EPIC GAMES (Fortnite) ===
-$VPS_IP epicgames.com
-$VPS_IP www.epicgames.com
-$VPS_IP unrealengine.com
-$VPS_IP fortnite.com
-
-# === ROCKSTAR (GTA Online) ===
-$VPS_IP rockstargames.com
-$VPS_IP www.rockstargames.com
-$VPS_IP socialclub.rockstargames.com
-
-# === 2K GAMES (NBA 2K) ===
-# NOTE: 2K Games domains removed - NBA 2K requires these to resolve to real IPs for matchmaking/CDN
-# Do NOT add: 2k.com, 2ksports.com, take2games.com, or any CDN/matchmaking subdomains
-# Adding these causes NBA 2K disconnections
-
-# === BLIZZARD ===
-$VPS_IP blizzard.com
-$VPS_IP www.blizzard.com
-$VPS_IP battle.net
-$VPS_IP www.battle.net
-
-# === RIOT GAMES ===
-$VPS_IP riotgames.com
-$VPS_IP www.riotgames.com
-$VPS_IP leagueoflegends.com
-$VPS_IP valorant.com
-
-# === SQUARE ENIX ===
-$VPS_IP square-enix.com
-$VPS_IP www.square-enix.com
-$VPS_IP square-enix-games.com
-
-# === BETHESDA ===
-$VPS_IP bethesda.net
-$VPS_IP www.bethesda.net
-$VPS_IP bethesda.com
-$VPS_IP www.bethesda.com
-
-# === CD PROJEKT ===
-$VPS_IP cdprojekt.com
-$VPS_IP www.cdprojekt.com
-$VPS_IP gog.com
-$VPS_IP www.gog.com
-
-# === XBOX GAMING SUBDOMAINS (prevents disconnections) ===
-$VPS_IP rta.xboxlive.com
-$VPS_IP titlestorage.xboxlive.com
-$VPS_IP titlestoragewus0505.blob.core.windows.net
-$VPS_IP multiplayeractivity.xboxlive.com
-$VPS_IP achievements.xboxlive.com
-$VPS_IP userstats.xboxlive.com
-$VPS_IP displaycatalog.mp.microsoft.com
-$VPS_IP v10.events.data.microsoft.com
-$VPS_IP v20.events.data.microsoft.com
-# NOTE: a978.i6g1.akamai.net removed - Akamai CDN domains must resolve to real IPs for game assets (NBA 2K, etc.)
-$VPS_IP ntp.servercore.com
-$VPS_IP activity.windows.com
-$VPS_IP client.wns.windows.com
-
-# === NAT DETECTION ===
-# CRITICAL: These domains are required for Xbox NAT type detection
-# Missing any of these will cause "NAT unavailable" errors
-$VPS_IP xbox.ipv6.microsoft.com
-$VPS_IP xbox.ipv4.microsoft.com
-$VPS_IP xbox.nat.microsoft.com
-# NOTE: teredo.ipv6.microsoft.com must resolve to REAL Teredo servers (not VPS IP)
-# Removing it from hosts file so it resolves correctly
-
-# === MICROSOFT SERVICES ===
-$VPS_IP arc.msn.com
-$VPS_IP fs.microsoft.com
-$VPS_IP licensing.mp.microsoft.com
-EOFHOSTS
+# Generate hosts file from template
+echo -e "${YELLOW}Generating hosts file from template...${NC}"
+sed -e "s/__VPS_IP__/$VPS_IP/g" -e "s/__DATE__/$(date)/g" "$TEMPLATE_FILE" > "$HOSTS_FILE"
 
 echo -e "${GREEN}✅ Hosts file generated${NC}"
 echo ""

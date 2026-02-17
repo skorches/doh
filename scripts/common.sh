@@ -12,9 +12,25 @@ export YELLOW='\033[1;33m'
 export BLUE='\033[0;34m'
 export NC='\033[0m' # No Color
 
-# Get VPS IP from local network interface (no external services)
+# Get VPS IP (priority: env var > .env file > network interface detection)
 get_vps_ip() {
     local vps_ip=""
+    
+    # Method 0: Check environment variable
+    if [ -n "$VPS_IP" ]; then
+        echo "$VPS_IP"
+        return 0
+    fi
+    
+    # Method 0.5: Check .env file
+    local project_root=$(get_project_root)
+    if [ -f "$project_root/.env" ]; then
+        local env_ip=$(grep '^VPS_IP=' "$project_root/.env" 2>/dev/null | cut -d'=' -f2 | tr -d ' "'"'"'')
+        if [ -n "$env_ip" ]; then
+            echo "$env_ip"
+            return 0
+        fi
+    fi
     
     # Method 1: Get IP from default route interface
     local default_interface=$(ip route | grep default | awk '{print $5}' | head -1)
@@ -35,7 +51,8 @@ get_vps_ip() {
         fi
     fi
     
-    echo -e "${RED}❌ Failed to detect VPS IP from network interface${NC}" >&2
+    echo -e "${RED}❌ Failed to detect VPS IP${NC}" >&2
+    echo -e "${YELLOW}Set VPS_IP in .env or pass as argument${NC}" >&2
     return 1
 }
 
