@@ -283,45 +283,47 @@ echo ""
 
 # Update Corefile if needed
 echo -e "${YELLOW}[5/7] Checking CoreDNS configuration...${NC}"
-if ! grep -q "cache 86400" coredns/Corefile 2>/dev/null; then
-    echo "Updating Corefile with optimized cache settings..."
+if ! grep -q "policy first" coredns/Corefile 2>/dev/null; then
+    echo "Updating Corefile with low-latency settings..."
     cat > coredns/Corefile << 'EOFCORE'
 . {
     # Load custom hosts for Xbox and Discord domains first
-    # CRITICAL: hosts plugin returns immediately, no cache/upstream needed
-    # reload ensures hosts file is checked periodically (prevents stale entries)
+    # CRITICAL: hosts plugin returns immediately (~0ms), no upstream query needed
     hosts /etc/coredns/xbox-hosts {
         fallthrough
-        reload 1h
+        reload 30s
+        ttl 300
     }
     
-    # Forward with parallel upstreams and fast fail settings
-    # max_fails and health_check prevent long timeouts when port 53 is blocked
-    # NOTE: hosts plugin with fallthrough already handles domain resolution
-    # Domains in hosts file are returned by hosts plugin, not forwarded upstream
+    # Forward non-hosts domains to upstream DNS
+    # policy first = always use fastest responding server (lowest latency)
+    # expire 10s = drop idle connections quickly to avoid stale sockets
     forward . 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 {
         max_concurrent 1000
-        max_fails 1
+        policy first
+        max_fails 2
+        expire 10s
         health_check 5s
     }
     
-    # Enable caching (24-hour cache for maximum stability)
-    # NOTE: Domains in hosts file bypass cache and upstream entirely
-    # Cache only applies to domains NOT in hosts file
-    # Long cache reduces upstream queries significantly (prevents timeouts)
-    cache 86400 {
-        success 86400
-        denial 86400
+    # Cache for non-hosts domains
+    # prefetch: refresh popular entries 10s before expiry (0 latency on re-query)
+    # serve_stale: return cached answer immediately while refreshing in background
+    cache 3600 {
+        success 3600
+        denial 600
+        prefetch 10 1m 10%
+        serve_stale 30s
     }
     
-    # Log errors (helps diagnose issues)
+    # Minimal logging (reduces I/O overhead)
     errors
     
     # Health check endpoint
     health :8080
 }
 EOFCORE
-    echo -e "${GREEN}✅ Corefile updated${NC}"
+    echo -e "${GREEN}✅ Corefile updated with low-latency settings${NC}"
 else
     echo -e "${GREEN}✅ Corefile already optimized${NC}"
 fi
@@ -329,9 +331,9 @@ echo ""
 
 # Update docker-compose.yml environment if needed
 echo -e "${YELLOW}[6/7] Checking docker-compose configuration...${NC}"
-if ! grep -q "DOH_SERVER_TIMEOUT=10" docker-compose.yml 2>/dev/null; then
+if ! grep -q "DOH_SERVER_TIMEOUT=5" docker-compose.yml 2>/dev/null; then
     echo "Updating docker-compose.yml timeouts..."
-    sed -i 's/DOH_SERVER_TIMEOUT=.*/DOH_SERVER_TIMEOUT=10/' docker-compose.yml
+    sed -i 's/DOH_SERVER_TIMEOUT=.*/DOH_SERVER_TIMEOUT=5/' docker-compose.yml
     sed -i 's/DOH_SERVER_TRIES=.*/DOH_SERVER_TRIES=3/' docker-compose.yml
     echo -e "${GREEN}✅ docker-compose.yml updated${NC}"
 else
