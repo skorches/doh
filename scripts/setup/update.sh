@@ -283,7 +283,7 @@ echo ""
 
 # Update Corefile if needed
 echo -e "${YELLOW}[5/7] Checking CoreDNS configuration...${NC}"
-if ! grep -q "policy first" coredns/Corefile 2>/dev/null; then
+if ! grep -q "policy sequential" coredns/Corefile 2>/dev/null; then
     echo "Updating Corefile with low-latency settings..."
     cat > coredns/Corefile << 'EOFCORE'
 . {
@@ -296,24 +296,21 @@ if ! grep -q "policy first" coredns/Corefile 2>/dev/null; then
     }
     
     # Forward non-hosts domains to upstream DNS
-    # policy first = always use fastest responding server (lowest latency)
-    # expire 10s = drop idle connections quickly to avoid stale sockets
+    # policy sequential = try servers in order (Cloudflare first = usually fastest)
     forward . 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 {
         max_concurrent 1000
-        policy first
+        policy sequential
         max_fails 2
         expire 10s
         health_check 5s
     }
     
     # Cache for non-hosts domains
-    # prefetch: refresh popular entries 10s before expiry (0 latency on re-query)
-    # serve_stale: return cached answer immediately while refreshing in background
+    # prefetch: refresh popular entries before expiry (0 latency on re-query)
     cache 3600 {
         success 3600
         denial 600
         prefetch 10 1m 10%
-        serve_stale 30s
     }
     
     # Minimal logging (reduces I/O overhead)
