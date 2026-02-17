@@ -247,9 +247,17 @@ fi
 # Step 2: Clean up old files
 echo ""
 echo -e "${YELLOW}[2/8] Cleaning up old files...${NC}"
+# Preserve template file during cleanup
+if [ -f "coredns/xbox-hosts.template" ]; then
+    cp coredns/xbox-hosts.template /tmp/xbox-hosts.template.bak
+fi
 rm -rf coredns/* nginx/* ssl/* 2>/dev/null || true
 mkdir -p coredns nginx/conf.d ssl
-echo -e "${GREEN}✅ Old files removed${NC}"
+# Restore template
+if [ -f "/tmp/xbox-hosts.template.bak" ]; then
+    mv /tmp/xbox-hosts.template.bak coredns/xbox-hosts.template
+fi
+echo -e "${GREEN}✅ Old files removed (template preserved)${NC}"
 
 # Step 3: Create docker-compose.yml
 echo ""
