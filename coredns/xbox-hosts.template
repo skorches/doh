@@ -45,12 +45,23 @@ __VPS_IP__ www.live.com
 __VPS_IP__ microsoft.com
 __VPS_IP__ www.microsoft.com
 __VPS_IP__ microsoftonline.com
-__VPS_IP__ msftncsi.com
-__VPS_IP__ msftconnecttest.com
 __VPS_IP__ windows.com
 __VPS_IP__ msn.com
 __VPS_IP__ xboxab.com
 __VPS_IP__ www.xboxab.com
+
+# === CONNECTIVITY & NAT DETECTION ===
+# These domains are EXCLUDED (must resolve to real Microsoft IPs)
+# Xbox connects directly to Microsoft for NAT testing — Microsoft needs to
+# see your REAL public IP, not the VPS IP, for accurate NAT detection.
+#
+# Excluded domains (resolve via upstream DNS):
+#   msftncsi.com, dns/www/ipv6.msftncsi.com       (network connectivity check)
+#   msftconnecttest.com, www/ipv4/ipv6             (connection test)
+#   xbox.nat.microsoft.com                         (NAT type detection)
+#   xbox.ipv4.microsoft.com                        (IPv4 NAT check)
+#   xbox.ipv6.microsoft.com                        (IPv6 NAT check)
+#   teredo.ipv6.microsoft.com                      (Teredo tunnel server)
 
 # === XBOX SOCIAL / PARTY / MESSAGING ===
 __VPS_IP__ social.xboxlive.com
@@ -87,14 +98,9 @@ __VPS_IP__ gssv-play-prodxhome.xboxlive.com
 # (login.live.com, account.microsoft.com already listed above)
 
 # === MICROSOFT NETWORK CHECKS (NAT Detection) ===
-# CRITICAL: These domains are required for Xbox NAT type detection
-# Missing any of these will cause "NAT unavailable" errors
-__VPS_IP__ dns.msftncsi.com
-__VPS_IP__ www.msftncsi.com
-__VPS_IP__ ipv6.msftncsi.com
-__VPS_IP__ www.msftconnecttest.com
-__VPS_IP__ ipv4.msftconnecttest.com
-__VPS_IP__ ipv6.msftconnecttest.com
+# REMOVED — these must resolve to REAL Microsoft IPs for NAT detection.
+# Routing through VPS causes Xbox to see VPS's NAT, not yours.
+# See CONNECTIVITY & NAT DETECTION section above for full list.
 
 # === OTHER MICROSOFT ===
 __VPS_IP__ arc.msn.com
@@ -128,11 +134,9 @@ __VPS_IP__ help.xbox.com
 __VPS_IP__ enforcement.xboxlive.com
 
 # === NAT DETECTION ===
-# CRITICAL: Required for Xbox NAT type detection
-__VPS_IP__ xbox.ipv6.microsoft.com
-__VPS_IP__ xbox.ipv4.microsoft.com
-__VPS_IP__ xbox.nat.microsoft.com
-# NOTE: teredo.ipv6.microsoft.com must resolve to REAL Teredo servers (not VPS IP)
+# REMOVED — must resolve to real Microsoft IPs for proper NAT detection.
+# See CONNECTIVITY & NAT DETECTION section above.
+# NOTE: teredo.ipv6.microsoft.com also excluded (Teredo tunnel server)
 
 # === DISCORD ===
 __VPS_IP__ discord.com
