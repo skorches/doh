@@ -68,8 +68,11 @@ __VPS_IP__ social.xboxlive.com
 __VPS_IP__ peoplehub.xboxlive.com
 __VPS_IP__ clubhub.xboxlive.com
 __VPS_IP__ xblmessaging.xboxlive.com
-__VPS_IP__ sessiondirectory.xboxlive.com
-__VPS_IP__ presence.xboxlive.com
+# sessiondirectory.xboxlive.com - EXCLUDED (must resolve to real MS IP)
+# Warzone uses this for 150-player lobby matchmaking; VPS routing causes
+# wrong region detection → "Lost connection to host" errors
+# presence.xboxlive.com - EXCLUDED (must resolve to real MS IP)
+# Player availability checks during matchmaking; needs direct connection
 __VPS_IP__ eds.xboxlive.com
 __VPS_IP__ compass.xboxlive.com
 __VPS_IP__ iris.xboxlive.com
