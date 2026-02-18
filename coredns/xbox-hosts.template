@@ -165,13 +165,28 @@ __VPS_IP__ router.discordapp.net
 __VPS_IP__ updates.discord.com
 
 # === ACTIVISION / CALL OF DUTY ===
-# !! DO NOT ADD - causes disconnections/timeouts when routed through VPS !!
-# CoD games need DIRECT, LOW-LATENCY connections to:
-#   - Matchmaking servers (demonware)
-#   - Game servers (actual gameplay)
-#   - CDN servers (asset delivery)
-# Routing through VPS causes: "Lost connection to host/server", timeouts
-# Excluded: activision.com, callofduty.com, atvi.com, demonware.net
+# !! TESTING - remove these if you get disconnections/timeouts !!
+__VPS_IP__ activision.com
+__VPS_IP__ www.activision.com
+__VPS_IP__ s.activision.com
+__VPS_IP__ support.activision.com
+__VPS_IP__ callofduty.com
+__VPS_IP__ www.callofduty.com
+__VPS_IP__ profile.callofduty.com
+__VPS_IP__ my.callofduty.com
+__VPS_IP__ api.callofduty.com
+__VPS_IP__ atvi.com
+__VPS_IP__ www.atvi.com
+__VPS_IP__ demonware.net
+__VPS_IP__ www.demonware.net
+__VPS_IP__ auth.demonware.net
+__VPS_IP__ lobby.demonware.net
+__VPS_IP__ loot.demonware.net
+__VPS_IP__ us.demonware.net
+__VPS_IP__ eu.demonware.net
+__VPS_IP__ ap.demonware.net
+__VPS_IP__ cod.tracker.gg
+__VPS_IP__ wzstats.gg
 
 # === ELECTRONIC ARTS (Battlefield, FIFA, FC, etc.) ===
 __VPS_IP__ ea.com
