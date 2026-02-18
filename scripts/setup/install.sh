@@ -762,11 +762,16 @@ table https_hosts {
     .*\.msn\.com$ *
     .*\.gamepass\.com$ *
     
-    # Discord domains
+    # Discord domains (bare + subdomains)
+    discord\.com$ *
     .*\.discord\.com$ *
+    discordapp\.com$ *
     .*\.discordapp\.com$ *
+    discordapp\.net$ *
     .*\.discordapp\.net$ *
+    discord\.gg$ *
     .*\.discord\.gg$ *
+    discord\.media$ *
     .*\.discord\.media$ *
     
     # Game Publisher domains

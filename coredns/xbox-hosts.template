@@ -151,6 +151,14 @@ __VPS_IP__ cdn.discord.com
 __VPS_IP__ images-ext-1.discordapp.net
 __VPS_IP__ images-ext-2.discordapp.net
 __VPS_IP__ media.discordapp.com
+__VPS_IP__ remote-auth-gateway.discord.gg
+__VPS_IP__ us-east.discord.gg
+__VPS_IP__ us-south.discord.gg
+__VPS_IP__ us-west.discord.gg
+__VPS_IP__ us-central.discord.gg
+__VPS_IP__ latency.discord.media
+__VPS_IP__ router.discordapp.net
+__VPS_IP__ updates.discord.com
 
 # === ACTIVISION / CALL OF DUTY ===
 # !! DO NOT ADD - causes disconnections/timeouts when routed through VPS !!
