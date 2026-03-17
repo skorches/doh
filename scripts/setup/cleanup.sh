@@ -27,7 +27,9 @@ echo "  • SNIProxy service"
 echo ""
 read -p "Are you sure you want to continue? (yes/no): " CONFIRM
 
-if [ "$CONFIRM" != "yes" ]; then
+# Accept y, yes, Y, YES, etc - convert to lowercase for comparison
+CONFIRM=$(echo "$CONFIRM" | tr '[:upper:]' '[:lower:]')
+if [ "$CONFIRM" != "y" ] && [ "$CONFIRM" != "yes" ]; then
     echo "Cleanup cancelled"
     exit 0
 fi
