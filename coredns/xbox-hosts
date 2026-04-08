@@ -2,12 +2,12 @@
 # It will be created by the install script with your VPS IP.
 #
 # To generate this file, run one of:
-#   sudo bash scripts/setup/install.sh
-#   sudo bash scripts/maintenance/regenerate-hosts.sh YOUR_VPS_IP
+#   sudo bash scripts/install.sh
+#   sudo bash scripts/install.sh regenerate-hosts YOUR_VPS_IP
 #
 # Or set your IP in .env and regenerate:
 #   cp .env.example .env
 #   # Edit .env and set VPS_IP=your.ip.here
-#   sudo bash scripts/maintenance/regenerate-hosts.sh
+#   sudo bash scripts/install.sh regenerate-hosts
 #
 # Template: coredns/xbox-hosts.template
