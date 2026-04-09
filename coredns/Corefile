@@ -1,7 +1,6 @@
 . {
     # Load custom hosts for Xbox and Discord domains first
     # CRITICAL: hosts plugin returns immediately (~0ms), no upstream query needed
-    # This ensures NAT domains never expire and never timeout
     hosts /etc/coredns/xbox-hosts {
         fallthrough
         reload 30s
@@ -32,4 +31,3 @@
     # Health check endpoint
     health :8080
 }
-

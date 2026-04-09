@@ -1,6 +1,6 @@
 services:
   doh-nginx:
-    image: nginx:alpine
+    image: nginx:1.27.5-alpine
     container_name: doh-nginx
     ports:
       - "8443:443"  # Internal port, SNIProxy listens on 443 externally
@@ -25,11 +25,14 @@ services:
       - DOH_SERVER_TIMEOUT=5
       - DOH_SERVER_TRIES=3
     restart: unless-stopped
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     networks:
       - doh-network
 
   coredns-smartdns:
-    image: coredns/coredns:latest
+    image: coredns/coredns:1.11.3
     container_name: coredns-smartdns
     volumes:
       - ./coredns/Corefile:/etc/coredns/Corefile:ro
@@ -48,4 +51,3 @@ services:
 networks:
   doh-network:
     driver: bridge
-
