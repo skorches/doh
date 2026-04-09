@@ -423,8 +423,6 @@ if [ -z "$DOMAIN_NAME" ]; then
     exit 1
 fi
 
-# Optional DoH API key for basic endpoint protection
-read -p "Optional DoH API key (leave empty for none): " DOH_API_KEY
 
 echo ""
 echo "Configuration:"
@@ -857,21 +855,15 @@ server {
         
         # Handle OPTIONS (CORS preflight)
         if (\$request_method = OPTIONS) {
-            add_header Access-Control-Allow-Origin https://$DOMAIN_NAME;
+            add_header Access-Control-Allow-Origin *;
             add_header Access-Control-Allow-Methods "GET, POST, OPTIONS";
-            add_header Access-Control-Allow-Headers "Content-Type, X-DoH-Key";
+            add_header Access-Control-Allow-Headers "Content-Type";
             add_header Access-Control-Max-Age 3600;
             add_header Content-Length 0;
             add_header Content-Type text/plain;
             return 204;
         }
 
-        # Optional API key check to reduce anonymous abuse
-        if ("$DOH_API_KEY" != "" ) {
-            if (\$http_x_doh_key != "$DOH_API_KEY") {
-                return 403;
-            }
-        }
         
         # Proxy to DoH backend
         proxy_pass http://doh-backend:8053;
@@ -883,9 +875,9 @@ server {
         proxy_set_header Connection "";
         
         # CORS headers for DoH
-        add_header Access-Control-Allow-Origin https://$DOMAIN_NAME always;
+        add_header Access-Control-Allow-Origin * always;
         add_header Access-Control-Allow-Methods "GET, POST, OPTIONS" always;
-        add_header Access-Control-Allow-Headers "Content-Type, X-DoH-Key" always;
+        add_header Access-Control-Allow-Headers "Content-Type" always;
     }
     
     # Root page - show info
