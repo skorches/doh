@@ -1,5 +1,5 @@
 . {
-    # Load custom hosts for Xbox and Discord domains first
+    # Load custom hosts for pinned domains first
     # CRITICAL: hosts plugin returns immediately (~0ms), no upstream query needed
     hosts /etc/coredns/xbox-hosts {
         fallthrough

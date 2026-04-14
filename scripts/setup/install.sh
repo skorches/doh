@@ -365,187 +365,22 @@ cat > coredns/xbox-hosts << EOFHOSTS
 # Smart DNS Hosts File
 # VPS IP: $VPS_IP
 # Generated: $(date)
+#
+# TRIAL: sign-in + Xbox auth only. Full list: coredns/xbox-hosts.template.full
 
-# === XBOX CORE ===
-$VPS_IP xboxlive.com
-$VPS_IP www.xboxlive.com
-$VPS_IP notify.xboxlive.com
-$VPS_IP xnotify.xboxlive.com
-$VPS_IP cert.mgt.xboxlive.com
-$VPS_IP xccs.xboxlive.com
-$VPS_IP settings.xboxlive.com
-$VPS_IP profile.xboxlive.com
-
-# === XBOX AUTHENTICATION ===
-$VPS_IP auth.xboxlive.com
-$VPS_IP device.auth.xboxlive.com
-$VPS_IP user.auth.xboxlive.com
-$VPS_IP title.auth.xboxlive.com
-$VPS_IP xsts.auth.xboxlive.com
-$VPS_IP sisu.xboxlive.com
-
-# === XBOX SERVICES ===
-$VPS_IP xbox.com
-$VPS_IP www.xbox.com
-$VPS_IP xboxservices.com
-$VPS_IP www.xboxservices.com
-$VPS_IP activity.xboxservices.com
-$VPS_IP contentaccess.xboxservices.com
-$VPS_IP contentaccess.exp.xboxservices.com
-$VPS_IP licensing.xboxservices.com
-$VPS_IP catalog.xboxservices.com
-$VPS_IP live.com
-$VPS_IP www.live.com
-$VPS_IP microsoft.com
-$VPS_IP www.microsoft.com
-$VPS_IP microsoftonline.com
-$VPS_IP msn.com
-$VPS_IP windows.com
-$VPS_IP msftncsi.com
-$VPS_IP msftconnecttest.com
-
-# === GAME PASS ===
-$VPS_IP gamepass.com
-$VPS_IP www.gamepass.com
-$VPS_IP catalog.gamepass.com
-$VPS_IP xboxgamepass.com
-
-# === MICROSOFT LOGIN ===
+# === MICROSOFT ACCOUNT & IDENTITY ===
 $VPS_IP login.live.com
 $VPS_IP account.live.com
 $VPS_IP account.microsoft.com
 $VPS_IP login.microsoftonline.com
 
-# === MICROSOFT NETWORK CHECKS (NAT Detection) ===
-# CRITICAL: These domains are required for Xbox NAT type detection
-# Missing any of these will cause "NAT unavailable" errors
-$VPS_IP dns.msftncsi.com
-$VPS_IP www.msftncsi.com
-$VPS_IP ipv6.msftncsi.com
-$VPS_IP www.msftconnecttest.com
-$VPS_IP ipv4.msftconnecttest.com
-$VPS_IP ipv6.msftconnecttest.com
-
-# === OTHER MICROSOFT ===
-$VPS_IP arc.msn.com
-$VPS_IP fs.microsoft.com
-$VPS_IP activity.windows.com
-$VPS_IP client.wns.windows.com
-$VPS_IP licensing.mp.microsoft.com
-
-# === XBOX GAMING SUBDOMAINS (prevents disconnections) ===
-$VPS_IP rta.xboxlive.com
-$VPS_IP titlestorage.xboxlive.com
-$VPS_IP titlestoragewus0505.blob.core.windows.net
-$VPS_IP multiplayeractivity.xboxlive.com
-$VPS_IP achievements.xboxlive.com
-$VPS_IP userstats.xboxlive.com
-$VPS_IP displaycatalog.mp.microsoft.com
-$VPS_IP v10.events.data.microsoft.com
-$VPS_IP v20.events.data.microsoft.com
-# NOTE: a978.i6g1.akamai.net removed - Akamai CDN domains must resolve to real IPs for game assets (NBA 2K, etc.)
-$VPS_IP ntp.servercore.com
-
-# === NAT DETECTION ===
-# CRITICAL: These domains are required for Xbox NAT type detection
-# Missing any of these will cause "NAT unavailable" errors
-$VPS_IP xbox.ipv6.microsoft.com
-$VPS_IP xbox.ipv4.microsoft.com
-$VPS_IP xbox.nat.microsoft.com
-# NOTE: teredo.ipv6.microsoft.com must resolve to REAL Teredo servers (not VPS IP)
-# Removing it from hosts file so it resolves correctly
-
-# === DISCORD ===
-$VPS_IP discord.com
-$VPS_IP www.discord.com
-$VPS_IP gateway.discord.gg
-$VPS_IP cdn.discordapp.com
-$VPS_IP media.discordapp.net
-$VPS_IP discord.gg
-$VPS_IP discordapp.com
-$VPS_IP discordapp.net
-$VPS_IP discord.media
-$VPS_IP status.discord.com
-$VPS_IP api.discord.com
-$VPS_IP gateway.discord.com
-$VPS_IP cdn.discord.com
-$VPS_IP images-ext-1.discordapp.net
-$VPS_IP images-ext-2.discordapp.net
-$VPS_IP media.discordapp.com
-
-# === GAME PUBLISHERS ===
-# Activision / Call of Duty
-# NOTE: ALL Call of Duty domains REMOVED - they cause disconnections/timeouts when routed through VPS
-# CoD games (Warzone, Black Ops, etc.) need DIRECT, LOW-LATENCY connections to:
-#   - Matchmaking servers (demonware)
-#   - Game servers (actual gameplay)
-#   - CDN servers (asset delivery)
-# Routing through VPS causes: "Lost connection to host/server", timeouts, matchmaking failures
-# Do NOT add: activision.com, callofduty.com, atvi.com, or ANY CoD/Activision subdomains
-
-# Electronic Arts (Battlefield, FIFA, etc.)
-$VPS_IP ea.com
-$VPS_IP www.ea.com
-$VPS_IP easports.com
-$VPS_IP www.easports.com
-$VPS_IP eamobile.com
-$VPS_IP swtor.com
-$VPS_IP tnt-ea.com
-$VPS_IP origin.com
-$VPS_IP www.origin.com
-$VPS_IP eaplay.com
-
-# Ubisoft (Assassin's Creed, etc.)
-$VPS_IP ubisoft.com
-$VPS_IP www.ubisoft.com
-$VPS_IP uplay.com
-$VPS_IP ubisoftconnect.com
-$VPS_IP ubisoftstore.com
-
-# Epic Games (Fortnite)
-$VPS_IP epicgames.com
-$VPS_IP www.epicgames.com
-$VPS_IP unrealengine.com
-$VPS_IP fortnite.com
-
-# Rockstar (GTA Online)
-$VPS_IP rockstargames.com
-$VPS_IP www.rockstargames.com
-$VPS_IP socialclub.rockstargames.com
-
-# 2K Games (NBA 2K, etc.)
-# NOTE: 2K Games domains removed - NBA 2K requires these to resolve to real IPs for matchmaking/CDN
-# Do NOT add: 2k.com, 2ksports.com, take2games.com, or any CDN/matchmaking subdomains
-# Adding these causes NBA 2K disconnections
-
-# Blizzard
-$VPS_IP blizzard.com
-$VPS_IP www.blizzard.com
-$VPS_IP battle.net
-$VPS_IP www.battle.net
-
-# Riot Games
-$VPS_IP riotgames.com
-$VPS_IP www.riotgames.com
-$VPS_IP leagueoflegends.com
-$VPS_IP valorant.com
-
-# Square Enix
-$VPS_IP square-enix.com
-$VPS_IP www.square-enix.com
-$VPS_IP square-enix-games.com
-
-# Bethesda
-$VPS_IP bethesda.net
-$VPS_IP www.bethesda.net
-$VPS_IP bethesda.com
-$VPS_IP www.bethesda.com
-
-# CD Projekt
-$VPS_IP cdprojekt.com
-$VPS_IP www.cdprojekt.com
-$VPS_IP gog.com
-$VPS_IP www.gog.com
+# === XBOX LIVE AUTHENTICATION ===
+$VPS_IP auth.xboxlive.com
+$VPS_IP user.auth.xboxlive.com
+$VPS_IP device.auth.xboxlive.com
+$VPS_IP title.auth.xboxlive.com
+$VPS_IP xsts.auth.xboxlive.com
+$VPS_IP sisu.xboxlive.com
 EOFHOSTS
 fi
 
@@ -759,6 +594,7 @@ table https_hosts {
     .*\.msftncsi\.com$ *
     .*\.msftconnecttest\.com$ *
     .*\.windows\.com$ *
+    .*\.windows\.net$ *
     .*\.msn\.com$ *
     .*\.gamepass\.com$ *
     
