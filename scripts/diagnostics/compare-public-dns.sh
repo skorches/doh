@@ -5,8 +5,8 @@
 #   3) Your CoreDNS on this machine (127.0.0.1) — run ON the VPS, or pass COREDNS_IP
 #
 # Usage:
-#   COREDNS_IP=127.0.0.1 bash scripts/maintenance/compare-public-dns.sh
-#   COREDNS_IP=151.241.227.116 bash scripts/maintenance/compare-public-dns.sh   # from your PC
+#   COREDNS_IP=127.0.0.1 bash scripts/diagnostics/compare-public-dns.sh
+#   COREDNS_IP=151.241.227.116 bash scripts/diagnostics/compare-public-dns.sh   # from your PC
 
 set -euo pipefail
 

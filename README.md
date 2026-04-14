@@ -135,19 +135,23 @@ doh/
 ├── nginx/
 │   └── conf.d/              # Nginx config (auto-generated)
 └── scripts/
+    ├── install.sh            # One-shot VPS commands (update, verify, regenerate-hosts, …)
     ├── common.sh             # Shared utilities
     ├── setup/
-    │   ├── install.sh        # Main installer
+    │   ├── install.sh        # Main installer (first-time deploy)
     │   ├── update.sh         # Update running config
     │   ├── cleanup.sh        # Complete removal
     │   └── setup-letsencrypt.sh  # Get SSL certificate
-    └── maintenance/
-        ├── verify-xbox-services.sh     # Verify all services
-        ├── verify-excluded-domains.sh  # Check for excluded domains
-        ├── fix-xbox-nat-unavailable.sh # Fix NAT issues
-        ├── fix-cod-disconnects.sh      # Fix Call of Duty timeouts
-        ├── regenerate-hosts.sh         # Regenerate hosts from template
-        └── verify-scripts.sh           # Verify script integrity
+    ├── maintenance/          # Common tasks (regenerate, fixes, health)
+    │   ├── regenerate-hosts.sh
+    │   ├── verify-xbox-services.sh
+    │   ├── fix-xbox-nat-unavailable.sh
+    │   └── fix-cod-disconnects.sh
+    └── diagnostics/          # Optional checks & niche host fixes (run when troubleshooting)
+        ├── compare-public-dns.sh
+        ├── fix-sniproxy-ipv6-unreachable.sh
+        ├── verify-excluded-domains.sh
+        └── verify-scripts.sh
 ```
 
 ## Troubleshooting
@@ -157,7 +161,7 @@ doh/
 1. **Verify NAT domains are in hosts file:**
    ```bash
    cd /root/doh
-   bash scripts/maintenance/fix-nat-teredo.sh
+   bash scripts/maintenance/fix-xbox-nat-unavailable.sh
    ```
 
 2. **Verify Xbox DNS is set to VPS IP:**
@@ -241,7 +245,7 @@ Check if any excluded domains accidentally got added:
 
 ```bash
 cd /root/doh
-bash scripts/maintenance/verify-excluded-domains.sh
+bash scripts/diagnostics/verify-excluded-domains.sh
 ```
 
 If excluded domains are found, fix with:

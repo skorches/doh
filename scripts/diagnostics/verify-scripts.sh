@@ -88,6 +88,7 @@ echo ""
 # Check script syntax
 echo "[3/3] Checking script syntax..."
 SCRIPTS=(
+    "scripts/install.sh"
     "scripts/setup/install.sh"
     "scripts/setup/update.sh"
     "scripts/setup/cleanup.sh"
@@ -96,6 +97,10 @@ SCRIPTS=(
     "scripts/maintenance/verify-xbox-services.sh"
     "scripts/maintenance/fix-xbox-nat-unavailable.sh"
     "scripts/maintenance/fix-cod-disconnects.sh"
+    "scripts/diagnostics/compare-public-dns.sh"
+    "scripts/diagnostics/fix-sniproxy-ipv6-unreachable.sh"
+    "scripts/diagnostics/verify-excluded-domains.sh"
+    "scripts/diagnostics/verify-scripts.sh"
 )
 
 SYNTAX_ERRORS=0

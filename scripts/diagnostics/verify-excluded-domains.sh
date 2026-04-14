@@ -24,7 +24,7 @@ elif [ -f "../../$HOSTS_FILE" ]; then
     cd "$PROJECT_ROOT"
 else
     echo -e "${RED}❌ Cannot find $HOSTS_FILE${NC}"
-    echo "Please run this script from the project root or scripts/maintenance directory"
+    echo "Please run this script from the project root or scripts/diagnostics directory"
     exit 1
 fi
 
