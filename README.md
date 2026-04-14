@@ -25,9 +25,9 @@ A simple self-hosted Smart DNS solution to bypass ISP blocking for Xbox Live, Di
 git clone https://github.com/skorches/doh
 cd doh
 
-# Run installer
-chmod +x scripts/setup/install.sh
-sudo ./scripts/setup/install.sh
+# Run installer (first-time setup: Docker, CoreDNS, SNIProxy, DoH)
+chmod +x scripts/setup.sh
+sudo ./scripts/setup.sh install
 ```
 
 The installer will:
@@ -135,23 +135,9 @@ doh/
 ├── nginx/
 │   └── conf.d/              # Nginx config (auto-generated)
 └── scripts/
-    ├── install.sh            # One-shot VPS commands (update, verify, regenerate-hosts, …)
-    ├── common.sh             # Shared utilities
-    ├── setup/
-    │   ├── install.sh        # Main installer (first-time deploy)
-    │   ├── update.sh         # Update running config
-    │   ├── cleanup.sh        # Complete removal
-    │   └── setup-letsencrypt.sh  # Get SSL certificate
-    ├── maintenance/          # Common tasks (regenerate, fixes, health)
-    │   ├── regenerate-hosts.sh
-    │   ├── verify-xbox-services.sh
-    │   ├── fix-xbox-nat-unavailable.sh
-    │   └── fix-cod-disconnects.sh
-    └── diagnostics/          # Optional checks & niche host fixes (run when troubleshooting)
-        ├── compare-public-dns.sh
-        ├── fix-sniproxy-ipv6-unreachable.sh
-        ├── verify-excluded-domains.sh
-        └── verify-scripts.sh
+    ├── setup.sh              # Install & lifecycle: install | update | cleanup | ssl
+    ├── maintain.sh           # Maintenance & diagnostics (regenerate-hosts, verify, fixes, …)
+    └── common.sh             # Shared helpers (sourced by maintain.sh)
 ```
 
 ## Troubleshooting
@@ -161,7 +147,7 @@ doh/
 1. **Verify NAT domains are in hosts file:**
    ```bash
    cd /root/doh
-   bash scripts/maintenance/fix-xbox-nat-unavailable.sh
+   sudo ./scripts/maintain.sh fix-xbox-nat
    ```
 
 2. **Verify Xbox DNS is set to VPS IP:**
@@ -245,12 +231,12 @@ Check if any excluded domains accidentally got added:
 
 ```bash
 cd /root/doh
-bash scripts/diagnostics/verify-excluded-domains.sh
+sudo ./scripts/maintain.sh verify-excluded
 ```
 
 If excluded domains are found, fix with:
 ```bash
-bash scripts/maintenance/fix-cod-disconnects.sh
+sudo ./scripts/maintain.sh fix-cod
 ```
 
 #### Other Games:
@@ -262,13 +248,19 @@ docker logs coredns-smartdns --tail 100 | grep -i "error\|timeout"
 
 ## Maintenance
 
+All day‑to‑day tasks use **`scripts/maintain.sh`**. Show commands:
+
+```bash
+sudo ./scripts/maintain.sh help
+```
+
 ### Update Running Configuration
 
 Apply latest optimizations and domain updates without reinstalling:
 
 ```bash
 cd /root/doh
-bash scripts/setup/update.sh
+sudo ./scripts/setup.sh update
 ```
 
 This will:
@@ -284,7 +276,7 @@ Check if everything is configured correctly:
 
 ```bash
 cd /root/doh
-bash scripts/maintenance/verify-xbox-services.sh
+sudo ./scripts/maintain.sh verify-services
 ```
 
 ### Regenerate Hosts File
@@ -295,10 +287,10 @@ If your VPS IP changes or you need to update domains:
 cd /root/doh
 
 # Auto-detect VPS IP (reads from .env or network interface)
-bash scripts/maintenance/regenerate-hosts.sh
+sudo ./scripts/maintain.sh regenerate-hosts
 
 # Or provide your VPS IP directly
-bash scripts/maintenance/regenerate-hosts.sh 1.2.3.4
+sudo ./scripts/maintain.sh regenerate-hosts 1.2.3.4
 ```
 
 ### Fix NAT/Teredo Issues
@@ -307,7 +299,7 @@ If NAT type becomes unavailable:
 
 ```bash
 cd /root/doh
-bash scripts/maintenance/fix-xbox-nat-unavailable.sh
+sudo ./scripts/maintain.sh fix-xbox-nat
 ```
 
 ## Uninstalling
@@ -316,7 +308,7 @@ To remove everything cleanly:
 
 ```bash
 cd /root/doh
-bash scripts/setup/cleanup.sh
+sudo ./scripts/setup.sh cleanup
 ```
 
 This will remove:

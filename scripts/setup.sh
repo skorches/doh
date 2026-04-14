@@ -9,10 +9,516 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-if [ "$EUID" -ne 0 ]; then 
-    echo -e "${RED}Please run as root${NC}"
-    exit 1
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+print_usage() {
+    echo "Usage:"
+    echo "  sudo ./scripts/setup.sh [command]"
+    echo ""
+    echo "Commands:"
+    echo "  install            Fresh install (default)"
+    echo "  update             Apply latest config from repo/template (full update)"
+    echo "  cleanup            Remove Docker stack and generated config"
+    echo "  setup-ssl | ssl    Obtain/refresh Let's Encrypt certificate"
+    echo "  help               Show this help"
+    echo ""
+    echo "Maintenance & diagnostics: sudo ./scripts/maintain.sh help"
+}
+
+detect_compose_cmd() {
+    if command -v docker-compose &> /dev/null; then
+        echo "docker-compose"
+    elif docker compose version &> /dev/null 2>&1; then
+        echo "docker compose"
+    else
+        echo ""
+    fi
+}
+
+require_root() {
+    if [ "$EUID" -ne 0 ]; then
+        echo -e "${RED}Please run as root${NC}"
+        exit 1
+    fi
+}
+
+detect_vps_ip() {
+    local ip=""
+    if [ -f ".env" ]; then
+        ip=$(sed -n 's/^VPS_IP=//p' .env | head -1 | tr -d "\"'[:space:]")
+    fi
+    if [ -z "$ip" ]; then
+        local default_if
+        default_if=$(ip route | awk '/default/ {print $5; exit}')
+        if [ -n "$default_if" ]; then
+            ip=$(ip -4 addr show "$default_if" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
+        fi
+    fi
+    if [ -z "$ip" ]; then
+        ip=$(ip -4 addr show | grep -oP 'inet \K[\d.]+' | grep -v '^127\.' | head -1)
+    fi
+    echo "$ip"
+}
+
+ensure_project_root() {
+    cd "$PROJECT_ROOT"
+}
+
+cmd_update() {
+    require_root
+    ensure_project_root
+    (
+        # Check if running as root
+        if [ "$EUID" -ne 0 ]; then 
+            echo -e "${RED}❌ Please run as root (sudo)${NC}"
+            exit 1
+        fi
+        
+        # Check if installation exists
+        if [ ! -f "docker-compose.yml" ]; then
+            echo -e "${RED}❌ No existing installation found${NC}"
+            echo "Please run: sudo ./scripts/setup.sh install"
+            exit 1
+        fi
+        
+        echo -e "${YELLOW}[1/7] Backing up current configuration...${NC}"
+        BACKUP_DIR="backups/$(date +%Y%m%d_%H%M%S)"
+        mkdir -p "$BACKUP_DIR"
+        cp -r coredns/ "$BACKUP_DIR/" 2>/dev/null || true
+        cp -r nginx/ "$BACKUP_DIR/" 2>/dev/null || true
+        cp docker-compose.yml "$BACKUP_DIR/" 2>/dev/null || true
+        echo -e "${GREEN}✅ Backup created: $BACKUP_DIR${NC}"
+        echo ""
+        
+        # Detect VPS IP (priority: .env file > network interface)
+        echo -e "${YELLOW}[2/7] Detecting VPS IP address...${NC}"
+        VPS_IP=""
+        if [ -f ".env" ]; then
+            source .env
+        fi
+        if [ -z "$VPS_IP" ]; then
+            DEFAULT_IF=$(ip route | grep default | awk '{print $5}' | head -1)
+            if [ -n "$DEFAULT_IF" ]; then
+                VPS_IP=$(ip -4 addr show "$DEFAULT_IF" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
+            fi
+        fi
+        if [ -z "$VPS_IP" ]; then
+            VPS_IP=$(ip -4 addr show | grep -oP 'inet \K[\d.]+' | grep -v '^127\.' | head -1)
+        fi
+        
+        if [ -z "$VPS_IP" ]; then
+            echo -e "${RED}❌ Could not detect VPS IP${NC}"
+            exit 1
+        fi
+        echo -e "${GREEN}✅ VPS IP: $VPS_IP${NC}"
+        echo ""
+        
+        # Get domain from existing config
+        echo -e "${YELLOW}[3/7] Reading existing configuration...${NC}"
+        DOMAIN_NAME=$(grep "server_name" nginx/conf.d/doh.conf 2>/dev/null | head -1 | awk '{print $2}' | tr -d ';' || echo "")
+        if [ -z "$DOMAIN_NAME" ]; then
+            echo -e "${RED}❌ Could not read domain name from config${NC}"
+            exit 1
+        fi
+        echo -e "${GREEN}✅ Domain: $DOMAIN_NAME${NC}"
+        echo ""
+        
+        # Check SSL certificate type
+        SSL_CERT="/etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem"
+        if [ -f "$SSL_CERT" ]; then
+            echo -e "${GREEN}✅ Using Let's Encrypt certificate${NC}"
+            SSL_KEY="/etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem"
+        else
+            echo -e "${YELLOW}ℹ Using self-signed certificate${NC}"
+            SSL_CERT="/etc/nginx/ssl/doh.crt"
+            SSL_KEY="/etc/nginx/ssl/doh.key"
+        fi
+        echo ""
+        
+        # Update hosts file from template
+        echo -e "${YELLOW}[4/7] Updating hosts file with latest domains...${NC}"
+        if [ -f "coredns/xbox-hosts.template" ]; then
+            sed -e "s/__VPS_IP__/$VPS_IP/g" -e "s/__DATE__/$(date)/g" coredns/xbox-hosts.template > coredns/xbox-hosts
+            DOMAIN_COUNT=$(grep -c "^$VPS_IP" coredns/xbox-hosts)
+            echo -e "${GREEN}✅ Hosts file updated from template with $DOMAIN_COUNT domains${NC}"
+        else
+            echo -e "${YELLOW}⚠ Template not found, generating hosts file inline...${NC}"
+            cat > coredns/xbox-hosts << EOFHOSTS
+# Auto-generated Xbox/Gaming DNS hosts file
+# Last updated: $(date)
+# VPS IP: $VPS_IP
+#
+# TRIAL: sign-in + Xbox auth only. Full list: coredns/xbox-hosts.template.full
+
+# === MICROSOFT ACCOUNT & IDENTITY ===
+$VPS_IP login.live.com
+$VPS_IP account.live.com
+$VPS_IP account.microsoft.com
+$VPS_IP login.microsoftonline.com
+
+# === XBOX LIVE AUTHENTICATION ===
+$VPS_IP auth.xboxlive.com
+$VPS_IP user.auth.xboxlive.com
+$VPS_IP device.auth.xboxlive.com
+$VPS_IP title.auth.xboxlive.com
+$VPS_IP xsts.auth.xboxlive.com
+$VPS_IP sisu.xboxlive.com
+EOFHOSTS
+            DOMAIN_COUNT=$(grep -c "^$VPS_IP" coredns/xbox-hosts)
+            echo -e "${GREEN}✅ Hosts file updated with $DOMAIN_COUNT domains${NC}"
+        fi
+        echo ""
+        
+        # Update Corefile if needed
+        echo -e "${YELLOW}[5/7] Checking CoreDNS configuration...${NC}"
+        if ! grep -q "policy sequential" coredns/Corefile 2>/dev/null; then
+            echo "Updating Corefile with low-latency settings..."
+            cat > coredns/Corefile << 'EOFCORE'
+. {
+    # Load custom hosts for Xbox and Discord domains first
+    # CRITICAL: hosts plugin returns immediately (~0ms), no upstream query needed
+    hosts /etc/coredns/xbox-hosts {
+        fallthrough
+        reload 30s
+        ttl 300
+    }
+    
+    # Forward non-hosts domains to upstream DNS
+    # policy sequential = try servers in order (Cloudflare first = usually fastest)
+    forward . 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 {
+        max_concurrent 1000
+        policy sequential
+        max_fails 2
+        expire 10s
+        health_check 5s
+    }
+    
+    # Cache for non-hosts domains
+    # prefetch: refresh popular entries before expiry (0 latency on re-query)
+    cache 3600 {
+        success 3600
+        denial 600
+        prefetch 10 1m 10%
+    }
+    
+    # Minimal logging (reduces I/O overhead)
+    errors
+    
+    # Health check endpoint
+    health :8080
+}
+EOFCORE
+            echo -e "${GREEN}✅ Corefile updated with low-latency settings${NC}"
+        else
+            echo -e "${GREEN}✅ Corefile already optimized${NC}"
+        fi
+        echo ""
+        
+        # Update docker-compose.yml environment if needed
+        echo -e "${YELLOW}[6/7] Checking docker-compose configuration...${NC}"
+        if ! grep -q "DOH_SERVER_TIMEOUT=5" docker-compose.yml 2>/dev/null; then
+            echo "Updating docker-compose.yml timeouts..."
+            sed -i 's/DOH_SERVER_TIMEOUT=.*/DOH_SERVER_TIMEOUT=5/' docker-compose.yml
+            sed -i 's/DOH_SERVER_TRIES=.*/DOH_SERVER_TRIES=3/' docker-compose.yml
+            echo -e "${GREEN}✅ docker-compose.yml updated${NC}"
+        else
+            echo -e "${GREEN}✅ docker-compose.yml already optimized${NC}"
+        fi
+        echo ""
+        
+        # Restart services
+        echo -e "${YELLOW}[7/7] Restarting services...${NC}"
+        echo "Restarting CoreDNS..."
+        docker-compose restart coredns-smartdns 2>/dev/null || docker compose restart coredns-smartdns 2>/dev/null || docker restart coredns-smartdns
+        sleep 3
+        
+        echo "Restarting DoH backend..."
+        docker-compose restart doh-backend 2>/dev/null || docker compose restart doh-backend 2>/dev/null || docker restart doh-backend
+        sleep 2
+        
+        echo "Restarting Nginx..."
+        docker-compose restart doh-nginx 2>/dev/null || docker compose restart doh-nginx 2>/dev/null || docker restart doh-nginx
+        sleep 2
+        
+        echo -e "${GREEN}✅ All services restarted${NC}"
+        echo ""
+        
+        # Verify services
+        echo "================================================"
+        echo "Verifying Update"
+        echo "================================================"
+        echo ""
+        
+        echo "Checking Docker containers..."
+        docker ps --format "table {{.Names}}\t{{.Status}}" | grep -E "coredns|doh-backend|doh-nginx"
+        echo ""
+        
+        echo "Testing DNS resolution..."
+        TEST_RESULT=$(curl -k -s -H 'accept: application/dns-json' "https://localhost:8443/dns-query?name=xboxlive.com&type=A" 2>/dev/null | grep -o '"data":"[^"]*"' | head -1)
+        if echo "$TEST_RESULT" | grep -q "$VPS_IP"; then
+            echo -e "${GREEN}✅ DNS resolution working (xboxlive.com → $VPS_IP)${NC}"
+        else
+            echo -e "${YELLOW}⚠️  DNS test inconclusive, check manually${NC}"
+        fi
+        echo ""
+        
+        echo "================================================"
+        echo "Update Complete!"
+        echo "================================================"
+        echo ""
+        echo "Changes applied:"
+        echo "  • Hosts file updated with latest domains"
+        echo "  • CoreDNS cache set to 24 hours"
+        echo "  • Fast-fail upstream settings enabled"
+        echo "  • DoH backend timeout increased to 10s"
+        echo "  • All services restarted"
+        echo ""
+        echo "Backup location: $BACKUP_DIR"
+        echo ""
+        echo "To verify everything:"
+        echo "  sudo ./scripts/maintain.sh verify-services"
+        echo ""
+        echo "If you need to rollback:"
+        echo "  cp -r $BACKUP_DIR/* ./"
+        echo "  docker-compose restart"
+        echo ""
+    )
+}
+
+cmd_setup_ssl() {
+    ensure_project_root
+    local domain
+    domain=$(sed -n 's/^DOMAIN=//p' .env 2>/dev/null | head -1 | tr -d "\"'[:space:]")
+    if [ -z "$domain" ]; then
+        domain=$(grep "server_name" nginx/conf.d/doh.conf 2>/dev/null | head -1 | awk '{print $2}' | tr -d ';')
+    fi
+    if [ -z "$domain" ]; then
+        echo -e "${RED}❌ Could not determine domain. Set DOMAIN in .env first.${NC}"
+        exit 1
+    fi
+    if ! command -v certbot &> /dev/null; then
+        apt-get update -qq
+        apt-get install -y certbot
+    fi
+    local email
+    read -p "Email for Let's Encrypt: " email
+    if [ -z "$email" ]; then
+        echo -e "${RED}❌ Email is required${NC}"
+        exit 1
+    fi
+    local compose_cmd
+    compose_cmd="$(detect_compose_cmd)"
+    if [ -n "$compose_cmd" ]; then
+        $compose_cmd stop doh-nginx 2>/dev/null || true
+    fi
+    systemctl stop nginx 2>/dev/null || true
+    certbot certonly --standalone -d "$domain" --non-interactive --agree-tos --email "$email"
+    if [ -n "$compose_cmd" ]; then
+        $compose_cmd up -d doh-nginx
+    fi
+    echo -e "${GREEN}✅ SSL setup complete for $domain${NC}"
+}
+
+cmd_cleanup() {
+    (
+        if [ "$EUID" -ne 0 ]; then 
+            echo -e "${RED}Please run as root${NC}"
+            exit 1
+        fi
+        
+        echo "================================================"
+        echo "Complete Cleanup - Removing All DoH Setup"
+        echo "================================================"
+        echo ""
+        echo -e "${YELLOW}⚠️  WARNING: This will remove ALL DoH/Smart DNS setup${NC}"
+        echo "This includes:"
+        echo "  • All Docker containers"
+        echo "  • All Docker volumes"
+        echo "  • All configuration files"
+        echo "  • SNIProxy service"
+        echo ""
+        read -p "Are you sure you want to continue? (yes/no): " CONFIRM
+        
+        # Accept y, yes, Y, YES, etc - convert to lowercase for comparison
+        CONFIRM=$(echo "$CONFIRM" | tr '[:upper:]' '[:lower:]')
+        if [ "$CONFIRM" != "y" ] && [ "$CONFIRM" != "yes" ]; then
+            echo "Cleanup cancelled"
+            exit 0
+        fi
+        
+        echo ""
+        echo "[1/6] Stopping all Docker containers..."
+        # Find project directory
+        if [ -f "docker-compose.yml" ]; then
+            : # already in correct directory
+        elif [ -d "/root/doh" ] && [ -f "/root/doh/docker-compose.yml" ]; then
+            cd /root/doh
+        elif [ -d "$HOME/doh" ] && [ -f "$HOME/doh/docker-compose.yml" ]; then
+            cd "$HOME/doh"
+        else
+            echo -e "${YELLOW}⚠️  doh directory not found, checking for containers...${NC}"
+        fi
+        
+        docker compose down 2>/dev/null || docker-compose down 2>/dev/null || true
+        docker stop coredns-smartdns doh-nginx doh-backend 2>/dev/null || true
+        docker rm coredns-smartdns doh-nginx doh-backend 2>/dev/null || true
+        echo -e "${GREEN}✅ Docker containers stopped${NC}"
+        echo ""
+        
+        echo "[2/6] Removing Docker volumes..."
+        docker volume prune -f 2>/dev/null || true
+        echo -e "${GREEN}✅ Docker volumes removed${NC}"
+        echo ""
+        
+        echo "[3/6] Stopping and removing SNIProxy..."
+        systemctl stop sniproxy 2>/dev/null || true
+        systemctl disable sniproxy 2>/dev/null || true
+        apt-get remove -y sniproxy 2>/dev/null || true
+        echo -e "${GREEN}✅ SNIProxy removed${NC}"
+        echo ""
+        
+        echo "[4/6] Removing configuration files..."
+        PROJECT_DIR=""
+        if [ -d "/root/doh" ]; then
+            PROJECT_DIR="/root/doh"
+        elif [ -d "$HOME/doh" ]; then
+            PROJECT_DIR="$HOME/doh"
+        elif [ -f "docker-compose.yml" ]; then
+            PROJECT_DIR="$(pwd)"
+        fi
+        
+        if [ -n "$PROJECT_DIR" ]; then
+            cd "$PROJECT_DIR"
+            # Preserve template files for reinstallation
+            echo "  Preserving template files..."
+            rm -f coredns/xbox-hosts 2>/dev/null || true
+            rm -f coredns/xbox-hosts.backup.* 2>/dev/null || true
+            rm -rf nginx/* ssl/* 2>/dev/null || true
+            rm -f docker-compose.yml 2>/dev/null || true
+            rm -f .env 2>/dev/null || true
+            echo -e "${GREEN}✅ Configuration files removed (template preserved)${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Project directory not found, skipping file removal${NC}"
+        fi
+        echo ""
+        
+        echo "[5/6] Cleaning up Docker network..."
+        docker network prune -f 2>/dev/null || true
+        echo -e "${GREEN}✅ Docker networks cleaned${NC}"
+        echo ""
+        
+        echo "[6/6] Verifying cleanup and port release..."
+        echo "Checking for remaining containers:"
+        REMAINING=$(docker ps -a --filter "name=coredns-smartdns" --filter "name=doh-nginx" --filter "name=doh-backend" --format "{{.Names}}" 2>/dev/null | wc -l)
+        if [ "$REMAINING" -eq 0 ]; then
+            echo -e "${GREEN}✅ No containers remaining${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Some containers still exist:${NC}"
+            docker ps -a --filter "name=coredns-smartdns" --filter "name=doh-nginx" --filter "name=doh-backend" --format "{{.Names}}"
+        fi
+        
+        echo ""
+        echo "Checking SNIProxy:"
+        if systemctl is-active sniproxy >/dev/null 2>&1; then
+            echo -e "${YELLOW}⚠️  SNIProxy is still running${NC}"
+        else
+            echo -e "${GREEN}✅ SNIProxy is stopped${NC}"
+        fi
+        
+        echo ""
+        echo "Checking ports are free:"
+        PORTS_USED=0
+        
+        # Check port 53 (DNS)
+        if ss -tuln | grep -q ":53"; then
+            echo -e "${YELLOW}⚠️  Port 53 still in use:${NC}"
+            ss -tuln | grep ":53"
+            PORTS_USED=1
+        else
+            echo -e "${GREEN}✅ Port 53 (DNS) is free${NC}"
+        fi
+        
+        # Check port 443 (SNIProxy)
+        if ss -tuln | grep -q ":443"; then
+            PROCESS=$(ss -tlnp | grep ":443" | grep -oE 'users:\(\([^)]+\)' | head -1)
+            if echo "$PROCESS" | grep -q "sniproxy"; then
+                echo -e "${YELLOW}⚠️  Port 443 still in use by SNIProxy${NC}"
+                PORTS_USED=1
+            else
+                echo -e "${YELLOW}⚠️  Port 443 in use by other process:${NC}"
+                ss -tlnp | grep ":443"
+                PORTS_USED=1
+            fi
+        else
+            echo -e "${GREEN}✅ Port 443 (HTTPS) is free${NC}"
+        fi
+        
+        # Check port 8443 (Nginx internal)
+        if ss -tuln | grep -q ":8443"; then
+            echo -e "${YELLOW}⚠️  Port 8443 still in use:${NC}"
+            ss -tuln | grep ":8443"
+            PORTS_USED=1
+        else
+            echo -e "${GREEN}✅ Port 8443 (Nginx internal) is free${NC}"
+        fi
+        
+        # Check port 8080 (Nginx internal)
+        if ss -tuln | grep -q ":8080"; then
+            echo -e "${YELLOW}⚠️  Port 8080 still in use:${NC}"
+            ss -tuln | grep ":8080"
+            PORTS_USED=1
+        else
+            echo -e "${GREEN}✅ Port 8080 (Nginx internal) is free${NC}"
+        fi
+        
+        if [ $PORTS_USED -eq 0 ]; then
+            echo ""
+            echo -e "${GREEN}✅ All ports are free!${NC}"
+        else
+            echo ""
+            echo -e "${YELLOW}⚠️  Some ports are still in use${NC}"
+            echo "If you see this, you may need to:"
+            echo "  • Kill remaining processes manually"
+            echo "  • Check for other services using these ports"
+        fi
+        echo ""
+        
+        echo "================================================"
+        echo -e "${GREEN}✅ Cleanup Complete!${NC}"
+        echo "================================================"
+        echo ""
+        echo "All DoH/Smart DNS setup has been removed."
+        echo ""
+        echo "To reinstall from scratch:"
+        echo "  1. cd to your doh directory"
+        echo "  2. git pull origin main  # Get latest code"
+        echo "  3. sudo ./scripts/setup.sh install"
+        echo ""
+        echo "The install script will:"
+        echo "  • Install all dependencies"
+        echo "  • Set up Docker containers"
+        echo "  • Configure CoreDNS"
+        echo "  • Set up SNIProxy"
+        echo "  • Generate SSL certificates"
+        echo "  • Configure all domains"
+        echo ""
+    )
+}
+
+COMMAND="${1:-install}"
+case "$COMMAND" in
+    install) require_root ;;
+    update) require_root; cmd_update; exit 0 ;;
+    cleanup) require_root; cmd_cleanup; exit 0 ;;
+    setup-ssl|ssl) require_root; cmd_setup_ssl; exit 0 ;;
+    help|-h|--help) print_usage; exit 0 ;;
+    *)
+        echo -e "${RED}Unknown command: $COMMAND${NC}"
+        print_usage
+        exit 1
+        ;;
+esac
 
 echo "================================================"
 echo "Xbox Smart DNS + DoH Server Setup"
@@ -180,6 +686,7 @@ if [ -z "$DOMAIN_NAME" ]; then
     exit 1
 fi
 
+
 echo ""
 echo "Configuration:"
 echo "  VPS IP: $VPS_IP"
@@ -213,6 +720,13 @@ echo -e "${YELLOW}Checking port 53 availability...${NC}"
 if ss -ulnp | grep -q ":53.*systemd-resolve" || ss -tlnp | grep -q ":53.*systemd-resolve"; then
     echo -e "${YELLOW}Port 53 is in use by systemd-resolved, fixing...${NC}"
     
+    read -p "Port 53 is used by systemd-resolved. Disable and rewrite resolver settings? (y/n): " FIX_DNS_STUB
+    if [[ ! $FIX_DNS_STUB =~ ^[Yy]$ ]]; then
+        echo -e "${RED}❌ Cannot continue while port 53 is occupied${NC}"
+        echo "Free port 53 manually, then rerun the installer."
+        exit 1
+    fi
+
     # Stop systemd-resolved
     systemctl stop systemd-resolved 2>/dev/null || true
     systemctl disable systemd-resolved 2>/dev/null || true
@@ -266,7 +780,7 @@ echo -e "${YELLOW}[3/8] Creating docker-compose.yml...${NC}"
 cat > docker-compose.yml << 'EOF'
 services:
   doh-nginx:
-    image: nginx:alpine
+    image: nginx:1.27.5-alpine
     container_name: doh-nginx
     ports:
       - "8443:443"  # Internal port, SNIProxy listens on 443 externally
@@ -295,7 +809,7 @@ services:
       - doh-network
 
   coredns-smartdns:
-    image: coredns/coredns:latest
+    image: coredns/coredns:1.11.3
     container_name: coredns-smartdns
     volumes:
       - ./coredns/Corefile:/etc/coredns/Corefile:ro
@@ -447,6 +961,7 @@ server {
             add_header Content-Type text/plain;
             return 204;
         }
+
         
         # Proxy to DoH backend
         proxy_pass http://doh-backend:8053;
@@ -775,22 +1290,22 @@ ufw allow 53/udp comment "DNS UDP" 2>/dev/null || true
 ufw allow 3074/tcp comment "Xbox Live" 2>/dev/null || true
 ufw allow 3074/udp comment "Xbox Live UDP" 2>/dev/null || true
 
-# Verify critical NAT domains are present
+# Verify NAT domains are excluded (must resolve to real Microsoft IPs)
 echo ""
-echo -e "${YELLOW}Verifying NAT detection domains...${NC}"
+echo -e "${YELLOW}Verifying NAT detection domains are excluded...${NC}"
 NAT_DOMAINS=("xbox.nat.microsoft.com" "xbox.ipv4.microsoft.com" "xbox.ipv6.microsoft.com" "dns.msftncsi.com" "ipv4.msftconnecttest.com")
-MISSING_DOMAINS=()
+PRESENT_DOMAINS=()
 for domain in "${NAT_DOMAINS[@]}"; do
-    if ! grep -q "$domain" "coredns/xbox-hosts"; then
-        MISSING_DOMAINS+=("$domain")
+    if grep -q "$domain" "coredns/xbox-hosts"; then
+        PRESENT_DOMAINS+=("$domain")
     fi
 done
 
-if [ ${#MISSING_DOMAINS[@]} -eq 0 ]; then
-    echo -e "${GREEN}✅ All critical NAT domains present${NC}"
+if [ ${#PRESENT_DOMAINS[@]} -eq 0 ]; then
+    echo -e "${GREEN}✅ NAT domains are excluded as expected${NC}"
 else
-    echo -e "${RED}❌ Missing NAT domains: ${MISSING_DOMAINS[*]}${NC}"
-    echo -e "${YELLOW}⚠ This may cause NAT detection issues!${NC}"
+    echo -e "${YELLOW}⚠ NAT domains still in hosts file: ${PRESENT_DOMAINS[*]}${NC}"
+    echo -e "${YELLOW}⚠ This can cause NAT detection issues!${NC}"
 fi
 
 echo ""
@@ -824,7 +1339,7 @@ echo "   - Can cause 'NAT unavailable' or 'Double NAT detected'"
 echo "   - Solutions: Bridge mode, UPnP, Port forwarding (3074 TCP/UDP), or DMZ"
 echo ""
 echo "To get Let's Encrypt certificate (recommended):"
-echo "  ./scripts/setup/setup-letsencrypt.sh"
+echo "  sudo ./scripts/setup.sh ssl"
 echo ""
 echo "================================================"
 

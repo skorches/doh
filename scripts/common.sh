@@ -60,10 +60,8 @@ get_vps_ip() {
 get_project_root() {
     local script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     
-    # Check if we're in scripts/setup, maintenance, or diagnostics
-    if [[ "$script_dir" == *"/scripts/setup" ]] || [[ "$script_dir" == *"/scripts/maintenance" ]] || [[ "$script_dir" == *"/scripts/diagnostics" ]]; then
-        echo "$(cd "$script_dir/../.." && pwd)"
-    elif [[ "$script_dir" == *"/scripts" ]]; then
+    # Project root: repo root (parent of scripts/)
+    if [[ "$script_dir" == *"/scripts" ]]; then
         echo "$(cd "$script_dir/.." && pwd)"
     else
         echo "$script_dir"
