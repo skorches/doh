@@ -94,7 +94,9 @@ __VPS_IP__ licensing.mp.microsoft.com
 
 # === XBOX GAMING SERVICES ===
 __VPS_IP__ rta.xboxlive.com
-__VPS_IP__ multiplayeractivity.xboxlive.com
+# multiplayeractivity — used during online/multiplayer flows; pinning can add latency for CoD queues.
+# Uncomment only if your ISP blocks it without the VPS:
+# __VPS_IP__ multiplayeractivity.xboxlive.com
 __VPS_IP__ achievements.xboxlive.com
 __VPS_IP__ userstats.xboxlive.com
 __VPS_IP__ leaderboards.xboxlive.com

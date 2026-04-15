@@ -11,7 +11,7 @@
     # policy sequential = try servers in order (Cloudflare first = usually fastest)
     forward . 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 {
         max_concurrent 1000
-        policy sequential
+        policy random
         max_fails 2
         expire 10s
         health_check 5s
