@@ -18,6 +18,7 @@ print_usage() {
     echo ""
     echo "Commands:"
     echo "  install            Fresh install (default)"
+    echo "  reinstall          Full cleanup + install (uses existing .env: DOMAIN, VPS_IP)"
     echo "  update             Apply latest config from repo/template (full update)"
     echo "  cleanup            Remove Docker stack and generated config"
     echo "  setup-ssl | ssl    Obtain/refresh Let's Encrypt certificate"
@@ -376,7 +377,11 @@ cmd_cleanup() {
         echo "  • All configuration files"
         echo "  • SNIProxy service"
         echo ""
-        read -p "Are you sure you want to continue? (yes/no): " CONFIRM
+        if [ "${SETUP_AUTO_YES:-}" = "1" ]; then
+            CONFIRM="yes"
+        else
+            read -p "Are you sure you want to continue? (yes/no): " CONFIRM
+        fi
         
         # Accept y, yes, Y, YES, etc - convert to lowercase for comparison
         CONFIRM=$(echo "$CONFIRM" | tr '[:upper:]' '[:lower:]')
@@ -544,9 +549,52 @@ cmd_cleanup() {
     )
 }
 
+cmd_reinstall() {
+    require_root
+    local DOH_DIR=""
+    for d in "/root/doh" "$HOME/doh" "$PROJECT_ROOT"; do
+        if [ -d "$d" ] && { [ -f "$d/coredns/xbox-hosts.template" ] || [ -f "$d/docker-compose.yml" ]; }; then
+            DOH_DIR="$d"
+            break
+        fi
+    done
+    if [ -z "$DOH_DIR" ] || [ ! -d "$DOH_DIR" ]; then
+        echo -e "${RED}Could not find doh project (e.g. /root/doh with xbox-hosts.template)${NC}"
+        exit 1
+    fi
+    cd "$DOH_DIR" || exit 1
+    if [ ! -f .env ]; then
+        echo -e "${RED}reinstall needs .env with DOMAIN= and VPS_IP= (run install once, or create .env)${NC}"
+        exit 1
+    fi
+    local SP
+    SP="$DOH_DIR/scripts/setup.sh"
+    if [ ! -f "$SP" ]; then
+        echo -e "${RED}Not found: $SP${NC}"
+        exit 1
+    fi
+    local bak
+    bak="/tmp/doh.reinstall.env.$$"
+    cp -a .env "$bak"
+    echo -e "${YELLOW}git pull (latest doh code)...${NC}"
+    git -C "$DOH_DIR" pull origin main || true
+    export SETUP_AUTO_YES=1
+    echo -e "${YELLOW}Full cleanup (containers, sniproxy, generated config)...${NC}"
+    cmd_cleanup
+    if [ -f "$bak" ]; then
+        cp -a "$bak" "$DOH_DIR/.env"
+        rm -f "$bak"
+    fi
+    export SETUP_REINSTALL=1
+    unset SETUP_AUTO_YES
+    echo -e "${GREEN}Running install (non-interactive, values from .env) ...${NC}"
+    exec bash "$SP" install
+}
+
 COMMAND="${1:-install}"
 case "$COMMAND" in
     install) require_root ;;
+    reinstall) require_root; cmd_reinstall; exit 0 ;;
     update) require_root; cmd_update; exit 0 ;;
     cleanup) require_root; cmd_cleanup; exit 0 ;;
     setup-ssl|ssl) require_root; cmd_setup_ssl; exit 0 ;;
@@ -675,6 +723,18 @@ cd "$INSTALL_DIR"
 
 # Get VPS IP (auto-detect with multiple fallbacks)
 echo -e "${YELLOW}Auto-detecting VPS IP address...${NC}"
+if [ "${SETUP_REINSTALL:-}" = "1" ] && [ -f .env ]; then
+    set -a
+    # shellcheck disable=SC1091
+    source .env
+    set +a
+    DOMAIN_NAME="${DOMAIN:-$DOMAIN_NAME}"
+    if [ -z "${VPS_IP:-}" ] || [ -z "${DOMAIN_NAME:-}" ]; then
+        echo -e "${RED}❌ reinstall requires VPS_IP and DOMAIN in .env${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✅ Reinstall: using .env (VPS_IP and DOMAIN)${NC}"
+else
 VPS_IP=""
 # Try multiple services with timeout
 for service in "ifconfig.me" "icanhazip.com" "ipinfo.io/ip" "api.ipify.org" "checkip.amazonaws.com"; do
@@ -718,22 +778,28 @@ fi
 
 # Ask for domain name
 echo ""
-read -p "Enter your domain name (e.g., bypass.example.com): " DOMAIN_NAME
+if [ -z "${DOMAIN_NAME:-}" ]; then
+    read -p "Enter your domain name (e.g., bypass.example.com): " DOMAIN_NAME
+fi
 if [ -z "$DOMAIN_NAME" ]; then
     echo -e "${RED}Domain name is required!${NC}"
     exit 1
 fi
-
+fi
 
 echo ""
 echo "Configuration:"
 echo "  VPS IP: $VPS_IP"
 echo "  Domain: $DOMAIN_NAME"
 echo ""
-read -p "Continue with installation? (y/n): " REPLY
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Cancelled"
-    exit 0
+if [ "${SETUP_REINSTALL:-}" != "1" ]; then
+    read -p "Continue with installation? (y/n): " REPLY
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Cancelled"
+        exit 0
+    fi
+else
+    echo "Reinstall: continuing without confirmation"
 fi
 
 echo ""
@@ -757,8 +823,11 @@ echo ""
 echo -e "${YELLOW}Checking port 53 availability...${NC}"
 if ss -ulnp | grep -q ":53.*systemd-resolve" || ss -tlnp | grep -q ":53.*systemd-resolve"; then
     echo -e "${YELLOW}Port 53 is in use by systemd-resolved, fixing...${NC}"
-    
+    if [ "${SETUP_REINSTALL:-}" = "1" ]; then
+        FIX_DNS_STUB="y"
+    else
     read -p "Port 53 is used by systemd-resolved. Disable and rewrite resolver settings? (y/n): " FIX_DNS_STUB
+    fi
     if [[ ! $FIX_DNS_STUB =~ ^[Yy]$ ]]; then
         echo -e "${RED}❌ Cannot continue while port 53 is occupied${NC}"
         echo "Free port 53 manually, then rerun the installer."
@@ -1082,6 +1151,10 @@ if [ -f /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem ]; then
     chmod 600 ssl/selfsigned.key
     echo -e "${GREEN}✅ Let's Encrypt certificate copied${NC}"
 else
+    if [ "${SETUP_REINSTALL:-}" = "1" ]; then
+        echo "Reinstall: using self-signed SSL (restore LE: sudo ./scripts/setup.sh ssl if DNS is ready)"
+        SSL_CHOICE=2
+    else
     echo ""
     echo "SSL Certificate Options:"
     echo "  1. Let's Encrypt (recommended - free, trusted)"
@@ -1089,7 +1162,8 @@ else
     echo ""
     read -p "Choose option (1 or 2, default: 2): " SSL_CHOICE
     SSL_CHOICE=${SSL_CHOICE:-2}
-    
+    fi
+
     if [ "$SSL_CHOICE" == "1" ]; then
         echo ""
         echo "Let's Encrypt Requirements:"
