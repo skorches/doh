@@ -21,6 +21,7 @@ Maintenance:
   fix-nat                   Remove NAT connectivity domains from hosts + restart CoreDNS
   fix-xbox-nat              Full NAT/Teredo troubleshooting helper
   fix-cod                   Remove Call of Duty domains from hosts if mistakenly added
+  fix-ufw-ports             UFW: allow 53/udp+tcp and 443/tcp (required for DNS + SNI/DoH from the internet)
 
 Diagnostics:
   verify-services           Deep check (containers, DNS, DoH, ports)
@@ -637,6 +638,32 @@ fi
 echo ""
 )
 
+# ----- maintenance: ensure UFW allows DNS + HTTPS (Xbox / routers hit public IP) -----
+run_fix_ufw_ports() (
+set -e
+if [ "$EUID" -ne 0 ]; then
+  echo "Please run as root"
+  exit 1
+fi
+if ! command -v ufw >/dev/null 2>&1; then
+  echo "ufw not installed; install with: apt-get install ufw"
+  exit 1
+fi
+echo "Adding UFW rules: 53/udp+tcp (DNS), 443/tcp (HTTPS/SNI/DoH), 80, 3074 (optional Xbox)..."
+# Xbox/router must reach this host on :53; clients must reach :443 for SNI to Microsoft domains
+ufw allow 53/udp comment "Smart DNS queries (Xbox / router to this VPS)" 2>/dev/null || ufw allow 53/udp
+ufw allow 53/tcp comment "DNS over TCP" 2>/dev/null || ufw allow 53/tcp
+ufw allow 443/tcp comment "HTTPS SNIProxy and DoH" 2>/dev/null || ufw allow 443/tcp
+ufw allow 80/tcp comment "HTTP" 2>/dev/null || true
+ufw allow 3074/tcp comment "Xbox port assist" 2>/dev/null || true
+ufw allow 3074/udp comment "Xbox port assist UDP" 2>/dev/null || true
+echo ""
+echo "Current status:"
+ufw status || true
+echo ""
+echo "If the console still fails, confirm your VPS provider security group / cloud firewall also allows 53/udp and 443/tcp."
+)
+
 # ----- embedded: maintenance/verify-xbox-services.sh -----
 run_verify_services() (
 
@@ -696,6 +723,29 @@ echo ""
 echo "VPS IP: $VPS_IP"
 echo ""
 echo "This script verifies all services and domains."
+echo ""
+
+# Firewall: without 53+443 from the internet, Xbox cannot use this host as DNS or SNI/DoH
+echo "[0/8] UFW: DNS (53) and HTTPS (443) from the internet..."
+U_OK=true
+if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
+  _S=$(ufw status 2>/dev/null)
+  if ! echo "$_S" | grep -E '53/udp|53/tcp' | grep -qi allow; then
+    U_OK=false
+  fi
+  if ! echo "$_S" | grep '443/tcp' | grep -qi allow; then
+    U_OK=false
+  fi
+  if [ "$U_OK" = true ]; then
+    echo -e "  ${GREEN}✅ UFW allows DNS (53) and HTTPS (443)${NC}"
+  else
+    echo -e "  ${RED}❌ UFW: need 53 (udp+tcp) and 443/tcp for Xbox Smart DNS + SNI${NC}"
+    echo "     Run: sudo ./scripts/maintain.sh fix-ufw-ports  (and check your cloud security group for the same)"
+    ISSUES=$((ISSUES + 1))
+  fi
+else
+  echo -e "  ${YELLOW}⚠  UFW inactive; ensure host and cloud firewall allow 53/udp+tcp and 443/tcp from the internet${NC}"
+fi
 echo ""
 
 # Critical NAT detection domains
@@ -1385,6 +1435,7 @@ case "$COMMAND" in
         ;;
     fix-xbox-nat) require_root; run_fix_xbox_nat "$@" ;;
     fix-cod) require_root; run_fix_cod "$@" ;;
+    fix-ufw-ports) require_root; run_fix_ufw_ports "$@" ;;
     verify-services) require_root; run_verify_services "$@" ;;
     compare-dns) run_compare_dns "$@" ;;
     fix-sniproxy-ipv6) require_root; run_fix_sniproxy_ipv6 "$@" ;;
