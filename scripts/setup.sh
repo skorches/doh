@@ -172,41 +172,79 @@ EOFHOSTS
         
         # Update Corefile if needed
         echo -e "${YELLOW}[5/7] Checking CoreDNS configuration...${NC}"
-        if ! grep -q "policy sequential" coredns/Corefile 2>/dev/null; then
-            echo "Updating Corefile with low-latency settings..."
+        if ! grep -q "msftncsi.com {" coredns/Corefile 2>/dev/null; then
+            echo "Updating Corefile (DoT + NCSI zones, no health/health_check)..."
             cat > coredns/Corefile << 'EOFCORE'
+# NCSI / NAT: real Microsoft IPs only
+msftncsi.com {
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+        tls_servername cloudflare-dns.com
+        policy sequential
+        max_fails 2
+        expire 30s
+    }
+    cache 120
+    errors
+}
+msftconnecttest.com {
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+        tls_servername cloudflare-dns.com
+        policy sequential
+        max_fails 2
+        expire 30s
+    }
+    cache 120
+    errors
+}
+nat.microsoft.com {
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+        tls_servername cloudflare-dns.com
+        policy sequential
+        max_fails 2
+        expire 30s
+    }
+    cache 120
+    errors
+}
+ipv4.microsoft.com {
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+        tls_servername cloudflare-dns.com
+        policy sequential
+        max_fails 2
+        expire 30s
+    }
+    cache 120
+    errors
+}
+ipv6.microsoft.com {
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+        tls_servername cloudflare-dns.com
+        policy sequential
+        max_fails 2
+        expire 30s
+    }
+    cache 120
+    errors
+}
 . {
-    # Load custom hosts for Xbox and Discord domains first
-    # CRITICAL: hosts plugin returns immediately (~0ms), no upstream query needed
     hosts /etc/coredns/xbox-hosts {
         fallthrough
         reload 30s
         ttl 300
     }
-    
-    # Forward non-hosts domains to upstream DNS
-    # policy sequential = try servers in order (Cloudflare first = usually fastest)
-    forward . 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 {
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+        tls_servername cloudflare-dns.com
         max_concurrent 1000
         policy sequential
         max_fails 2
-        expire 10s
-        health_check 5s
+        expire 30s
     }
-    
-    # Cache for non-hosts domains
-    # prefetch: refresh popular entries before expiry (0 latency on re-query)
     cache 3600 {
         success 3600
         denial 600
         prefetch 10 1m 10%
     }
-    
-    # Minimal logging (reduces I/O overhead)
     errors
-    
-    # Health check endpoint
-    health :8080
 }
 EOFCORE
             echo -e "${GREEN}✅ Corefile updated with low-latency settings${NC}"
@@ -834,38 +872,76 @@ echo ""
 echo -e "${YELLOW}[4/8] Creating CoreDNS configuration...${NC}"
 
 cat > coredns/Corefile << 'EOFCORE'
+# NCSI / NAT: real Microsoft IPs only
+msftncsi.com {
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+        tls_servername cloudflare-dns.com
+        policy sequential
+        max_fails 2
+        expire 30s
+    }
+    cache 120
+    errors
+}
+msftconnecttest.com {
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+        tls_servername cloudflare-dns.com
+        policy sequential
+        max_fails 2
+        expire 30s
+    }
+    cache 120
+    errors
+}
+nat.microsoft.com {
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+        tls_servername cloudflare-dns.com
+        policy sequential
+        max_fails 2
+        expire 30s
+    }
+    cache 120
+    errors
+}
+ipv4.microsoft.com {
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+        tls_servername cloudflare-dns.com
+        policy sequential
+        max_fails 2
+        expire 30s
+    }
+    cache 120
+    errors
+}
+ipv6.microsoft.com {
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+        tls_servername cloudflare-dns.com
+        policy sequential
+        max_fails 2
+        expire 30s
+    }
+    cache 120
+    errors
+}
 . {
-    # Load custom hosts for Xbox and Discord domains first
-    # CRITICAL: hosts plugin returns immediately (~0ms), no upstream query needed
     hosts /etc/coredns/xbox-hosts {
         fallthrough
         reload 30s
         ttl 300
     }
-    
-    # Forward non-hosts domains to upstream DNS
-    # policy sequential = try servers in order (Cloudflare first = usually fastest)
-    forward . 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 {
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+        tls_servername cloudflare-dns.com
         max_concurrent 1000
         policy sequential
         max_fails 2
-        expire 10s
-        health_check 5s
+        expire 30s
     }
-    
-    # Cache for non-hosts domains
-    # prefetch: refresh popular entries before expiry (0 latency on re-query)
     cache 3600 {
         success 3600
         denial 600
         prefetch 10 1m 10%
     }
-    
-    # Minimal logging (reduces I/O overhead)
     errors
-    
-    # Health check endpoint
-    health :8080
 }
 EOFCORE
 

@@ -1,33 +1,76 @@
+# NCSI / NAT / Teredo: must get real Microsoft IPs, never the Smart DNS hosts file.
+msftncsi.com {
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+        tls_servername cloudflare-dns.com
+        policy sequential
+        max_fails 2
+        expire 30s
+    }
+    cache 120
+    errors
+}
+msftconnecttest.com {
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+        tls_servername cloudflare-dns.com
+        policy sequential
+        max_fails 2
+        expire 30s
+    }
+    cache 120
+    errors
+}
+nat.microsoft.com {
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+        tls_servername cloudflare-dns.com
+        policy sequential
+        max_fails 2
+        expire 30s
+    }
+    cache 120
+    errors
+}
+ipv4.microsoft.com {
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+        tls_servername cloudflare-dns.com
+        policy sequential
+        max_fails 2
+        expire 30s
+    }
+    cache 120
+    errors
+}
+ipv6.microsoft.com {
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+        tls_servername cloudflare-dns.com
+        policy sequential
+        max_fails 2
+        expire 30s
+    }
+    cache 120
+    errors
+}
+
 . {
     # Load custom hosts for pinned domains first
-    # CRITICAL: hosts plugin returns immediately (~0ms), no upstream query needed
     hosts /etc/coredns/xbox-hosts {
         fallthrough
         reload 30s
         ttl 300
     }
-    
-    # Forward non-hosts domains to upstream DNS
-    # policy sequential = try servers in order (Cloudflare first = usually fastest)
-    forward . 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 {
-        max_concurrent 1000
-        policy random
+
+    # DoT: plain DNS from the Docker bridge to 1.1.1.1:53 is often lossy on VPS; TLS :853 is not.
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+        tls_servername cloudflare-dns.com
+        max_concurrent 2000
+        policy sequential
         max_fails 2
-        expire 10s
-        health_check 5s
+        expire 30s
     }
-    
-    # Cache for non-hosts domains
-    # prefetch: refresh popular entries before expiry (0 latency on re-query)
+
     cache 3600 {
         success 3600
         denial 600
         prefetch 10 1m 10%
     }
-    
-    # Minimal logging (reduces I/O overhead)
     errors
-    
-    # Health check endpoint
-    health :8080
 }

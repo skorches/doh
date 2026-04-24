@@ -50,7 +50,7 @@ __VPS_IP__ microsoftonline.com
 __VPS_IP__ xboxab.com
 __VPS_IP__ www.xboxab.com
 
-# === CONNECTIVITY & NAT (see Corefile — never pin NAT test hostnames here) ===
+# === CONNECTIVITY & NAT (NCSI/NAT zones in Corefile — not listed here) ===
 
 # === CDN & BULK DELIVERY (not pinned) ===
 # titlestorage, displaycatalog, storeedgefd, *.blob, dl.delivery, collections, purchase, etc.
@@ -60,11 +60,10 @@ __VPS_IP__ social.xboxlive.com
 __VPS_IP__ peoplehub.xboxlive.com
 __VPS_IP__ clubhub.xboxlive.com
 __VPS_IP__ xblmessaging.xboxlive.com
-# sessiondirectory + presence: DO NOT PIN for Warzone / large CoD lobbies — hairpin via VPS causes
-# wrong region, "Lost connection to host", and search/disconnect loops. Resolve direct (omit lines).
-# If you need them for friend invites on other games only, add these two lines back temporarily:
-#   __VPS_IP__ sessiondirectory.xboxlive.com
-#   __VPS_IP__ presence.xboxlive.com
+# sessiondirectory + presence: required for sign-in / “connect to Xbox network” if upstream forward fails.
+# CoD: comment these two if you get wrong region or constant Warzone disconnects.
+__VPS_IP__ sessiondirectory.xboxlive.com
+__VPS_IP__ presence.xboxlive.com
 __VPS_IP__ eds.xboxlive.com
 __VPS_IP__ compass.xboxlive.com
 __VPS_IP__ iris.xboxlive.com
