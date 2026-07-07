@@ -6,6 +6,7 @@ A simple self-hosted Smart DNS solution to bypass ISP blocking for Xbox Live, Di
 
 - **Smart DNS**: Returns your VPS IP for blocked domains (Xbox, Discord, games)
 - **DNS over HTTPS (DoH)**: Encrypted DNS queries for your router
+- **Optional IPv6 routing**: Adds AAAA answers for pinned Xbox domains when your VPS has public IPv6
 - **SNI Proxy**: Routes HTTPS traffic to real servers based on domain name
 - **Auto-configured**: All major game publishers included by default
 
@@ -47,12 +48,21 @@ The installer will:
 
 ### 3. Configure Domain DNS
 
-Make sure your domain's DNS A record points to your VPS IP:
+Make sure your domain's DNS records point to your VPS:
 
 ```
 Type: A
 Name: @ (or your subdomain)
 Content: YOUR_VPS_IP
+Proxy: OFF (if using Cloudflare)
+```
+
+If your VPS has public IPv6 and you set `VPS_IPV6`, also add:
+
+```
+Type: AAAA
+Name: @ (or your subdomain)
+Content: YOUR_VPS_IPV6
 Proxy: OFF (if using Cloudflare)
 ```
 
@@ -105,6 +115,12 @@ dig @127.0.0.1 xboxlive.com
 ```bash
 curl -k -H 'accept: application/dns-json' \
   'https://YOUR_DOMAIN/dns-query?name=xboxlive.com&type=A'
+```
+
+**Test IPv6 Smart DNS (optional):**
+```bash
+curl -k -H 'accept: application/dns-json' \
+  'https://YOUR_DOMAIN/dns-query?name=xboxlive.com&type=AAAA'
 ```
 
 **Test Xbox:**
@@ -291,6 +307,9 @@ sudo ./scripts/maintain.sh regenerate-hosts
 
 # Or provide your VPS IP directly
 sudo ./scripts/maintain.sh regenerate-hosts 1.2.3.4
+
+# Or provide IPv4 + IPv6
+sudo ./scripts/maintain.sh regenerate-hosts 1.2.3.4 2001:db8::10
 ```
 
 ### Fix NAT/Teredo Issues

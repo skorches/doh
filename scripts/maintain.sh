@@ -17,7 +17,8 @@ usage() {
 Usage: sudo ./scripts/maintain.sh <command> [args]
 
 Maintenance:
-  regenerate-hosts [VPS_IP]   Rebuild coredns/xbox-hosts from template & restart CoreDNS
+  regenerate-hosts [VPS_IP] [VPS_IPV6]
+                            Rebuild coredns/xbox-hosts from template & restart CoreDNS
   fix-nat                   Remove NAT connectivity domains from hosts + restart CoreDNS
   fix-xbox-nat              Full NAT/Teredo troubleshooting helper
   fix-cod                   Remove Call of Duty domains from hosts if mistakenly added
@@ -26,7 +27,7 @@ Maintenance:
 Diagnostics:
   verify-services           Deep check (containers, DNS, DoH, ports)
   compare-dns               Compare key names vs Cloudflare / xbox-dns.ru / local CoreDNS
-  fix-sniproxy-ipv6         Disable IPv6 on host for broken IPv6 routes (SNIProxy)
+  fix-sniproxy-ipv6         Disable broken outbound IPv6 routes (do not use with VPS_IPV6)
   verify-excluded           Ensure CoD/2K domains are not pinned in hosts/SNIProxy
   check-repo                Sanity-check templates vs scripts (developer check)
 
@@ -43,9 +44,10 @@ run_regenerate_hosts() (
 
 # Regenerate xbox-hosts file from template
 # Usage:
-#   sudo ./scripts/maintain.sh regenerate-hosts                 # auto-detect VPS IP
-#   sudo ./scripts/maintain.sh regenerate-hosts 1.2.3.4         # provide VPS IP as argument
-#   VPS_IP=1.2.3.4 sudo ./scripts/maintain.sh regenerate-hosts  # provide via env var
+#   sudo ./scripts/maintain.sh regenerate-hosts                       # auto-detect VPS IPs
+#   sudo ./scripts/maintain.sh regenerate-hosts 1.2.3.4               # provide IPv4
+#   sudo ./scripts/maintain.sh regenerate-hosts 1.2.3.4 2001:db8::10 # provide IPv4 + IPv6
+#   VPS_IP=1.2.3.4 VPS_IPV6=2001:db8::10 sudo ./scripts/maintain.sh regenerate-hosts
 
 set -e
 
@@ -84,7 +86,7 @@ fi
 echo -e "${BLUE}Using directory: $DOH_DIR${NC}"
 cd "$DOH_DIR"
 
-# Determine VPS IP (priority: argument > env var > .env file > auto-detect)
+# Determine VPS IPs (priority: argument > env var > .env file > auto-detect)
 if [ -n "$1" ]; then
     VPS_IP="$1"
     echo -e "${GREEN}Using VPS IP from argument: $VPS_IP${NC}"
@@ -95,6 +97,13 @@ elif [ -f ".env" ]; then
     if [ -n "$VPS_IP" ]; then
         echo -e "${GREEN}Using VPS IP from .env file: $VPS_IP${NC}"
     fi
+fi
+
+if [ -n "${2:-}" ]; then
+    VPS_IPV6="$2"
+    echo -e "${GREEN}Using VPS IPv6 from argument: $VPS_IPV6${NC}"
+elif [ -n "${VPS_IPV6:-}" ]; then
+    echo -e "${GREEN}Using VPS IPv6 from environment/.env: $VPS_IPV6${NC}"
 fi
 
 # If still empty, auto-detect from network interface
@@ -127,6 +136,18 @@ if [ -z "$VPS_IP" ] || ! echo "$VPS_IP" | grep -qE '^([0-9]{1,3}\.){3}[0-9]{1,3}
 fi
 
 echo -e "${GREEN}✅ VPS IP: $VPS_IP${NC}"
+if [ -n "${VPS_IPV6:-}" ] && ! is_public_ipv6 "$VPS_IPV6"; then
+    echo -e "${YELLOW}⚠ Ignoring invalid/private VPS_IPV6: $VPS_IPV6${NC}"
+    VPS_IPV6=""
+fi
+if [ -z "${VPS_IPV6:-}" ]; then
+    VPS_IPV6="$(get_vps_ipv6 2>/dev/null || true)"
+fi
+if [ -n "${VPS_IPV6:-}" ]; then
+    echo -e "${GREEN}✅ VPS IPv6: $VPS_IPV6${NC}"
+else
+    echo -e "${YELLOW}ℹ No public IPv6 configured; AAAA Smart DNS answers will be skipped${NC}"
+fi
 echo ""
 
 # Check for template file
@@ -147,9 +168,12 @@ fi
 
 # Generate hosts file from template
 echo -e "${YELLOW}Generating hosts file from template...${NC}"
-sed -e "s/__VPS_IP__/$VPS_IP/g" -e "s/__DATE__/$(date)/g" "$TEMPLATE_FILE" > "$HOSTS_FILE"
+write_hosts_from_template "$TEMPLATE_FILE" "$HOSTS_FILE" "$VPS_IP" "${VPS_IPV6:-}"
 
 echo -e "${GREEN}✅ Hosts file generated${NC}"
+if [ -n "${VPS_IPV6:-}" ]; then
+    echo -e "${GREEN}✅ IPv6 AAAA aliases added for pinned domains${NC}"
+fi
 echo ""
 
 # Restart CoreDNS
@@ -160,38 +184,45 @@ docker-compose restart coredns-smartdns 2>/dev/null || docker compose restart co
 }
 sleep 3
 
-# Verify critical NAT domains are present
-echo -e "${YELLOW}Verifying NAT detection domains...${NC}"
+# Verify critical NAT domains are excluded
+echo -e "${YELLOW}Verifying NAT detection domains are excluded...${NC}"
 NAT_DOMAINS=("xbox.nat.microsoft.com" "xbox.ipv4.microsoft.com" "xbox.ipv6.microsoft.com" "dns.msftncsi.com" "ipv4.msftconnecttest.com")
-MISSING_DOMAINS=()
+PRESENT_DOMAINS=()
 for domain in "${NAT_DOMAINS[@]}"; do
-    if ! grep -q "$domain" "$HOSTS_FILE"; then
-        MISSING_DOMAINS+=("$domain")
+    if grep -q "$domain" "$HOSTS_FILE"; then
+        PRESENT_DOMAINS+=("$domain")
     fi
 done
 
-if [ ${#MISSING_DOMAINS[@]} -eq 0 ]; then
-    echo -e "${GREEN}✅ All critical NAT domains present${NC}"
+if [ ${#PRESENT_DOMAINS[@]} -eq 0 ]; then
+    echo -e "${GREEN}✅ NAT domains are excluded as expected${NC}"
 else
-    echo -e "${RED}❌ Missing NAT domains: ${MISSING_DOMAINS[*]}${NC}"
-    echo -e "${YELLOW}⚠ This may cause NAT detection issues!${NC}"
+    echo -e "${RED}❌ NAT domains still pinned: ${PRESENT_DOMAINS[*]}${NC}"
+    echo -e "${YELLOW}⚠ This can cause NAT detection issues!${NC}"
 fi
 
 # Verify DNS resolution
 echo ""
 echo -e "${YELLOW}Verifying DNS resolution...${NC}"
-DISCORD_DNS=$(timeout 3 dig @127.0.0.1 discord.com +short 2>/dev/null | head -1 || echo "FAILED")
 XBOX_DNS=$(timeout 3 dig @127.0.0.1 xboxlive.com +short 2>/dev/null | head -1 || echo "FAILED")
 ACTIVISION_DNS=$(timeout 3 dig @127.0.0.1 activision.com +short 2>/dev/null | head -1 || echo "TIMEOUT")
+if [ -n "${VPS_IPV6:-}" ]; then
+    XBOX_DNS_AAAA=$(timeout 3 dig @127.0.0.1 xboxlive.com AAAA +short 2>/dev/null | head -1 || echo "FAILED")
+fi
 
-echo "  discord.com → $DISCORD_DNS (should be $VPS_IP)"
 echo "  xboxlive.com → $XBOX_DNS (should be $VPS_IP)"
+if [ -n "${VPS_IPV6:-}" ]; then
+    echo "  xboxlive.com AAAA → $XBOX_DNS_AAAA (should be $VPS_IPV6)"
+fi
 echo "  activision.com → $ACTIVISION_DNS (should NOT be $VPS_IP)"
 
-if [ "$DISCORD_DNS" == "$VPS_IP" ] && [ "$XBOX_DNS" == "$VPS_IP" ]; then
+if [ "$XBOX_DNS" == "$VPS_IP" ] && { [ -z "${VPS_IPV6:-}" ] || [ "$XBOX_DNS_AAAA" == "$VPS_IPV6" ]; }; then
     if [ "$ACTIVISION_DNS" != "$VPS_IP" ]; then
         echo -e "${GREEN}✅ DNS resolution working correctly!${NC}"
-        echo "   - Discord/Xbox route via VPS ✓"
+        echo "   - Xbox routes via VPS ✓"
+        if [ -n "${VPS_IPV6:-}" ]; then
+            echo "   - Xbox AAAA routes via VPS IPv6 ✓"
+        fi
         echo "   - Call of Duty routes directly ✓"
     else
         echo -e "${RED}❌ Call of Duty is routing to VPS (will cause timeouts)${NC}"
@@ -208,7 +239,10 @@ echo "✅ Hosts file regenerated!"
 echo "================================================"
 echo ""
 echo "Next steps:"
-echo "1. Test DNS: dig @127.0.0.1 discord.com"
+echo "1. Test DNS: dig @127.0.0.1 xboxlive.com"
+if [ -n "${VPS_IPV6:-}" ]; then
+    echo "   Test IPv6: dig @127.0.0.1 xboxlive.com AAAA"
+fi
 echo "2. Restart your router to clear DNS cache"
 echo "3. Test Xbox and Discord services"
 echo ""
@@ -219,6 +253,9 @@ echo "   - This prevents 'lost connection to host/server' timeouts"
 echo ""
 echo "⚠️  IMPORTANT for Xbox NAT Detection:"
 echo "   - Ensure Xbox DNS is set to VPS IP: $VPS_IP"
+if [ -n "${VPS_IPV6:-}" ]; then
+    echo "   - If your router accepts IPv6 DNS servers, use VPS IPv6: $VPS_IPV6"
+fi
 echo "   - Settings → Network → Advanced → DNS Settings"
 echo "   - Primary DNS: $VPS_IP"
 echo "   - Restart Xbox after changing DNS to clear cache"
@@ -1092,7 +1129,7 @@ run_fix_sniproxy_ipv6() (
 # which breaks Store / Game Pass / tiles that go through the proxy.
 #
 # This disables IPv6 on the host so outbound connections use IPv4 only.
-# Safe for typical DoH + SNIProxy setups that only need IPv4.
+# Safe only for IPv4-only DoH + SNIProxy setups. Do not run this when VPS_IPV6 is enabled.
 #
 # Revert: rm /etc/sysctl.d/99-sniproxy-ipv4-outbound.conf && sysctl -p && systemctl restart sniproxy
 
@@ -1428,7 +1465,7 @@ case "$COMMAND" in
             "teredo.ipv6.microsoft.com"
         )
         for domain in "${NAT_DOMAINS[@]}"; do
-            sed -i "/^[0-9].*$domain/d" coredns/xbox-hosts 2>/dev/null || true
+            sed -i "/^[0-9A-Fa-f:.][0-9A-Fa-f:.]*[[:space:]].*$domain/d" coredns/xbox-hosts 2>/dev/null || true
         done
         echo -e "${GREEN}NAT connectivity domains stripped from hosts${NC}"
         docker compose restart coredns-smartdns 2>/dev/null || docker-compose restart coredns-smartdns 2>/dev/null || docker restart coredns-smartdns 2>/dev/null || true

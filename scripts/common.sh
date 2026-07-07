@@ -56,6 +56,109 @@ get_vps_ip() {
     return 1
 }
 
+# Get public VPS IPv6 if available (optional).
+get_vps_ipv6() {
+    local vps_ipv6=""
+    
+    # Method 0: Check environment variable
+    if [ -n "${VPS_IPV6:-}" ]; then
+        if is_public_ipv6 "$VPS_IPV6"; then
+            echo "$VPS_IPV6"
+            return 0
+        fi
+        return 1
+    fi
+    
+    # Method 0.5: Check .env file
+    local project_root=$(get_project_root)
+    if [ -f "$project_root/.env" ]; then
+        local env_ipv6=$(grep '^VPS_IPV6=' "$project_root/.env" 2>/dev/null | cut -d'=' -f2- | tr -d ' "'"'"'')
+        if [ -n "$env_ipv6" ] && is_public_ipv6 "$env_ipv6"; then
+            echo "$env_ipv6"
+            return 0
+        fi
+    fi
+    
+    # Method 1: Try public IPv6 check services. These fail quickly on IPv4-only VPSes.
+    for service in "https://api64.ipify.org" "https://icanhazip.com" "https://ifconfig.co"; do
+        vps_ipv6=$(curl -6 -s --max-time 5 "$service" 2>/dev/null | grep -oEi '([0-9a-f]{1,4}:){2,}[0-9a-f:]{1,}' | head -1)
+        if is_public_ipv6 "$vps_ipv6"; then
+            echo "$vps_ipv6"
+            return 0
+        fi
+    done
+    
+    # Method 2: Use the default IPv6 route interface.
+    local default_interface=$(ip -6 route 2>/dev/null | awk '/default/ {print $5; exit}')
+    if [ -n "$default_interface" ]; then
+        vps_ipv6=$(ip -6 addr show dev "$default_interface" scope global 2>/dev/null | awk '/inet6/ {split($2,a,"/"); print a[1]; exit}')
+    fi
+    
+    # Method 3: Any non-private global IPv6 on the host.
+    if [ -z "$vps_ipv6" ]; then
+        vps_ipv6=$(ip -6 addr show scope global 2>/dev/null | awk '/inet6/ {split($2,a,"/"); print a[1]; exit}')
+    fi
+    
+    if is_public_ipv6 "$vps_ipv6"; then
+        echo "$vps_ipv6"
+        return 0
+    fi
+    
+    return 1
+}
+
+is_public_ipv6() {
+    local ip="${1:-}"
+    if [ -z "$ip" ]; then
+        return 1
+    fi
+    if ! echo "$ip" | grep -qiE '^([0-9a-f]{0,4}:){2,}[0-9a-f]{0,4}$'; then
+        return 1
+    fi
+    if echo "$ip" | grep -qiE '^(::1|fe80:|f[cd][0-9a-f]{2}:)'; then
+        return 1
+    fi
+    return 0
+}
+
+append_ipv6_hosts() {
+    local hosts_file="$1"
+    local vps_ipv6="${2:-}"
+    local ipv6_hosts
+    
+    if ! is_public_ipv6 "$vps_ipv6"; then
+        return 0
+    fi
+    
+    ipv6_hosts=$(awk -v ip="$vps_ipv6" '
+        /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+[ \t]+[A-Za-z0-9.-]+[ \t]*$/ {
+            if (!seen[$2]++) print ip " " $2
+        }
+    ' "$hosts_file")
+    
+    if [ -z "$ipv6_hosts" ]; then
+        return 0
+    fi
+    
+    {
+        echo ""
+        echo "# === IPv6 AAAA aliases (same pinned domains) ==="
+        echo "$ipv6_hosts"
+    } >> "$hosts_file"
+}
+
+write_hosts_from_template() {
+    local template_file="$1"
+    local hosts_file="$2"
+    local vps_ip="$3"
+    local vps_ipv6="${4:-}"
+    local tmp_file="${hosts_file}.tmp.$$"
+    
+    sed -e "s/__VPS_IP__/$vps_ip/g" -e "s/__DATE__/$(date)/g" "$template_file" > "$tmp_file"
+    append_ipv6_hosts "$tmp_file" "$vps_ipv6"
+    mv "$tmp_file" "$hosts_file"
+}
+
 # Get project root directory
 get_project_root() {
     local script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"

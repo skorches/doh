@@ -12,13 +12,16 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/common.sh"
+
 print_usage() {
     echo "Usage:"
     echo "  sudo ./scripts/setup.sh [command]"
     echo ""
     echo "Commands:"
     echo "  install            Fresh install (default)"
-    echo "  reinstall          Full cleanup + install (uses existing .env: DOMAIN, VPS_IP)"
+    echo "  reinstall          Full cleanup + install (uses existing .env: DOMAIN, VPS_IP, optional VPS_IPV6)"
     echo "  update             Apply latest config from repo/template (full update)"
     echo "  cleanup            Remove Docker stack and generated config"
     echo "  setup-ssl | ssl    Obtain/refresh Let's Encrypt certificate"
@@ -92,9 +95,10 @@ cmd_update() {
         echo -e "${GREEN}✅ Backup created: $BACKUP_DIR${NC}"
         echo ""
         
-        # Detect VPS IP (priority: .env file > network interface)
-        echo -e "${YELLOW}[2/7] Detecting VPS IP address...${NC}"
+        # Detect VPS IPs (priority: .env file > network interface)
+        echo -e "${YELLOW}[2/7] Detecting VPS IP addresses...${NC}"
         VPS_IP=""
+        VPS_IPV6=""
         if [ -f ".env" ]; then
             source .env
         fi
@@ -113,6 +117,18 @@ cmd_update() {
             exit 1
         fi
         echo -e "${GREEN}✅ VPS IP: $VPS_IP${NC}"
+        if [ -n "${VPS_IPV6:-}" ] && ! is_public_ipv6 "$VPS_IPV6"; then
+            echo -e "${YELLOW}⚠ Ignoring invalid/private VPS_IPV6 from .env${NC}"
+            VPS_IPV6=""
+        fi
+        if [ -z "${VPS_IPV6:-}" ]; then
+            VPS_IPV6="$(get_vps_ipv6 2>/dev/null || true)"
+        fi
+        if [ -n "${VPS_IPV6:-}" ]; then
+            echo -e "${GREEN}✅ VPS IPv6: $VPS_IPV6${NC}"
+        else
+            echo -e "${YELLOW}ℹ No public IPv6 detected; AAAA Smart DNS answers will be skipped${NC}"
+        fi
         echo ""
         
         # Get domain from existing config
@@ -140,9 +156,14 @@ cmd_update() {
         # Update hosts file from template
         echo -e "${YELLOW}[4/7] Updating hosts file with latest domains...${NC}"
         if [ -f "coredns/xbox-hosts.template" ]; then
-            sed -e "s/__VPS_IP__/$VPS_IP/g" -e "s/__DATE__/$(date)/g" coredns/xbox-hosts.template > coredns/xbox-hosts
-            DOMAIN_COUNT=$(grep -c "^$VPS_IP" coredns/xbox-hosts)
-            echo -e "${GREEN}✅ Hosts file updated from template with $DOMAIN_COUNT domains${NC}"
+            write_hosts_from_template "coredns/xbox-hosts.template" "coredns/xbox-hosts" "$VPS_IP" "${VPS_IPV6:-}"
+            DOMAIN_COUNT=$(grep -c "^$VPS_IP[[:space:]]" coredns/xbox-hosts)
+            if [ -n "${VPS_IPV6:-}" ]; then
+                IPV6_DOMAIN_COUNT=$(grep -c "^$VPS_IPV6[[:space:]]" coredns/xbox-hosts)
+                echo -e "${GREEN}✅ Hosts file updated from template with $DOMAIN_COUNT A and $IPV6_DOMAIN_COUNT AAAA domains${NC}"
+            else
+                echo -e "${GREEN}✅ Hosts file updated from template with $DOMAIN_COUNT domains${NC}"
+            fi
         else
             echo -e "${YELLOW}⚠ Template not found, generating hosts file inline...${NC}"
             cat > coredns/xbox-hosts << EOFHOSTS
@@ -166,7 +187,8 @@ $VPS_IP title.auth.xboxlive.com
 $VPS_IP xsts.auth.xboxlive.com
 $VPS_IP sisu.xboxlive.com
 EOFHOSTS
-            DOMAIN_COUNT=$(grep -c "^$VPS_IP" coredns/xbox-hosts)
+            append_ipv6_hosts "coredns/xbox-hosts" "${VPS_IPV6:-}"
+            DOMAIN_COUNT=$(grep -c "^$VPS_IP[[:space:]]" coredns/xbox-hosts)
             echo -e "${GREEN}✅ Hosts file updated with $DOMAIN_COUNT domains${NC}"
         fi
         echo ""
@@ -721,8 +743,8 @@ fi
 mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 
-# Get VPS IP (auto-detect with multiple fallbacks)
-echo -e "${YELLOW}Auto-detecting VPS IP address...${NC}"
+# Get VPS IPs (auto-detect with multiple fallbacks)
+echo -e "${YELLOW}Auto-detecting VPS IP addresses...${NC}"
 if [ "${SETUP_REINSTALL:-}" = "1" ] && [ -f .env ]; then
     set -a
     # shellcheck disable=SC1091
@@ -733,9 +755,10 @@ if [ "${SETUP_REINSTALL:-}" = "1" ] && [ -f .env ]; then
         echo -e "${RED}❌ reinstall requires VPS_IP and DOMAIN in .env${NC}"
         exit 1
     fi
-    echo -e "${GREEN}✅ Reinstall: using .env (VPS_IP and DOMAIN)${NC}"
+    echo -e "${GREEN}✅ Reinstall: using .env (VPS_IP, DOMAIN, optional VPS_IPV6)${NC}"
 else
 VPS_IP=""
+VPS_IPV6="${VPS_IPV6:-}"
 # Try multiple services with timeout
 for service in "ifconfig.me" "icanhazip.com" "ipinfo.io/ip" "api.ipify.org" "checkip.amazonaws.com"; do
     VPS_IP=$(curl -4 -s --max-time 5 "$service" 2>/dev/null | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1)
@@ -787,9 +810,41 @@ if [ -z "$DOMAIN_NAME" ]; then
 fi
 fi
 
+if [ -n "${VPS_IPV6:-}" ] && ! is_public_ipv6 "$VPS_IPV6"; then
+    echo -e "${YELLOW}⚠ Ignoring invalid/private VPS_IPV6: $VPS_IPV6${NC}"
+    VPS_IPV6=""
+fi
+
+if [ -z "${VPS_IPV6:-}" ]; then
+    VPS_IPV6="$(get_vps_ipv6 2>/dev/null || true)"
+fi
+
+if [ -z "${VPS_IPV6:-}" ] && [ "${SETUP_REINSTALL:-}" != "1" ]; then
+    echo -e "${YELLOW}⚠ No public IPv6 auto-detected${NC}"
+    read -p "Enter your VPS IPv6 address (optional, blank to skip): " VPS_IPV6_MANUAL
+    if [ -n "$VPS_IPV6_MANUAL" ]; then
+        if is_public_ipv6 "$VPS_IPV6_MANUAL"; then
+            VPS_IPV6="$VPS_IPV6_MANUAL"
+        else
+            echo -e "${YELLOW}⚠ Invalid/private IPv6 entered; continuing without IPv6 Smart DNS answers${NC}"
+        fi
+    fi
+fi
+
+if [ -n "${VPS_IPV6:-}" ]; then
+    echo -e "${GREEN}✅ VPS IPv6: $VPS_IPV6${NC}"
+else
+    echo -e "${YELLOW}ℹ IPv6 Smart DNS answers disabled. Set VPS_IPV6 in .env and rerun regenerate-hosts to enable.${NC}"
+fi
+
 echo ""
 echo "Configuration:"
 echo "  VPS IP: $VPS_IP"
+if [ -n "${VPS_IPV6:-}" ]; then
+    echo "  VPS IPv6: $VPS_IPV6"
+else
+    echo "  VPS IPv6: not configured"
+fi
 echo "  Domain: $DOMAIN_NAME"
 echo ""
 if [ "${SETUP_REINSTALL:-}" != "1" ]; then
@@ -1016,7 +1071,7 @@ EOFCORE
 
 # Generate xbox-hosts from template
 if [ -f "coredns/xbox-hosts.template" ]; then
-    sed -e "s/__VPS_IP__/$VPS_IP/g" -e "s/__DATE__/$(date)/g" coredns/xbox-hosts.template > coredns/xbox-hosts
+    write_hosts_from_template "coredns/xbox-hosts.template" "coredns/xbox-hosts" "$VPS_IP" "${VPS_IPV6:-}"
     echo -e "${GREEN}✅ xbox-hosts generated from template${NC}"
 else
     echo -e "${YELLOW}⚠ Template not found, generating xbox-hosts inline...${NC}"
@@ -1041,11 +1096,13 @@ $VPS_IP title.auth.xboxlive.com
 $VPS_IP xsts.auth.xboxlive.com
 $VPS_IP sisu.xboxlive.com
 EOFHOSTS
+    append_ipv6_hosts "coredns/xbox-hosts" "${VPS_IPV6:-}"
 fi
 
 # Save VPS_IP to .env for future use
 cat > .env << EOFENV
 VPS_IP=$VPS_IP
+VPS_IPV6=${VPS_IPV6:-}
 DOMAIN=$DOMAIN_NAME
 EOFENV
 echo -e "${GREEN}✅ Configuration saved to .env${NC}"
@@ -1167,7 +1224,10 @@ else
     if [ "$SSL_CHOICE" == "1" ]; then
         echo ""
         echo "Let's Encrypt Requirements:"
-        echo "  - Domain DNS A record must point to this VPS ($VPS_IP)"
+        echo "  - Domain DNS A record must point to this VPS IPv4 ($VPS_IP)"
+        if [ -n "${VPS_IPV6:-}" ]; then
+            echo "  - Domain DNS AAAA record must point to this VPS IPv6 ($VPS_IPV6)"
+        fi
         echo "  - Port 80 must be open"
         echo ""
         read -p "Enter your email for Let's Encrypt: " EMAIL
@@ -1473,6 +1533,11 @@ echo "Test DoH:"
 echo "  curl -H 'accept: application/dns-json' 'https://$DOMAIN_NAME/dns-query?name=xboxlive.com&type=A'"
 echo ""
 echo "Expected: Should return VPS IP ($VPS_IP)"
+if [ -n "${VPS_IPV6:-}" ]; then
+    echo "Test IPv6 DoH:"
+    echo "  curl -H 'accept: application/dns-json' 'https://$DOMAIN_NAME/dns-query?name=xboxlive.com&type=AAAA'"
+    echo "Expected: Should return VPS IPv6 ($VPS_IPV6)"
+fi
 echo ""
 echo "Configure your router DoH URL:"
 echo "  https://$DOMAIN_NAME/dns-query"
